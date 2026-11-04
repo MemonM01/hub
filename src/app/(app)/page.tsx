@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { requireUserId } from '@/lib/auth'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, requestNow } from '@/lib/supabase/server'
 import { getAssignments, getModules, progressFor } from '@/lib/data'
 import { DONE } from '@/lib/types'
 import { formatDate, formatDateTime } from '@/lib/format'
@@ -36,7 +36,7 @@ export default async function DashboardPage() {
       .order('created_at', { ascending: false })
       .limit(10),
   ])
-  const now = Date.now()
+  const now = await requestNow()
   const codeOf = new Map(modules.map((m) => [m.id, m.code]))
 
   const upcoming = assignments

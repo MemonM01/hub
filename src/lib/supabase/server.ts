@@ -34,3 +34,9 @@ export async function getUserId(): Promise<string | null> {
   const { data } = await supabase.auth.getClaims()
   return data?.claims?.sub ?? null
 }
+
+// The current time. Only valid after connection(), which createClient() has awaited.
+export async function requestNow(): Promise<number> {
+  await connection()
+  return Date.now()
+}
