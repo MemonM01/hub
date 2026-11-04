@@ -31,7 +31,7 @@ export default async function DashboardPage() {
     supabase
       .from('files')
       .select('id, filename, title, created_at')
-      .eq('sort_status', 'needs_look')
+      .neq('sort_status', 'sorted')
       .not('size_bytes', 'is', null)
       .order('created_at', { ascending: false })
       .limit(10),
