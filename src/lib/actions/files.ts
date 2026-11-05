@@ -8,6 +8,8 @@ import { requireUserId } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { MAX_UPLOAD_BYTES, deleteObject, headObject, objectKey, signPut } from '@/lib/r2'
 import { mimeFor } from '@/lib/mime'
+import { assignmentExternalId, parseModuleCode, parseSheet } from '@/lib/sheets'
+import { looksLikeSolution } from '@/lib/sheets-kind'
 
 export type StartUpload =
   | { ok: true; fileId: string; url: string; contentType: string }
@@ -22,7 +24,8 @@ export async function startUpload(input: {
   size: number
   type: string
   moduleId?: string | null
-  assignmentId?: string | null
+  assignmentId?: string | null // dropped on one assignment row
+  autoFile?: boolean // dropped on the Assignments page: file it from the name
   fileId?: string | null // fill in a row that only has a name
 }): Promise<StartUpload> {
   const userId = await requireUserId()
@@ -39,46 +42,90 @@ export async function startUpload(input: {
     if (!row) return { ok: false, error: 'That file row does not exist.' }
   } else {
     let moduleId = input.moduleId ?? null
+    let assignmentId: string | null = null
     let pinned = false
+
     if (input.assignmentId) {
-      const { data: a } = await supabase
-        .from('assignments')
-        .select('id, module_id')
-        .eq('id', input.assignmentId)
-        .maybeSingle()
+      // Dropped on one row: attach it there and pin it, so the sorter never moves it.
+      const { data: a } = await supabase.from('assignments').select('id, module_id').eq('id', input.assignmentId).maybeSingle()
       if (!a) return { ok: false, error: 'That assignment does not exist.' }
+      assignmentId = a.id
+      moduleId = a.module_id
+      pinned = true
+    } else if (input.autoFile) {
+      // Dropped on the Assignments page: module code and sheet number come from the filename.
+      const code = parseModuleCode(filename)
+      const sheet = parseSheet(filename)
+      if (!code || !sheet) {
+        return { ok: false, error: `${filename}: no module code and sheet number in the name. Drop it on its row instead.` }
+      }
+      const { data: mod } = await supabase.from('modules').select('id').eq('code', code).maybeSingle()
+      if (!mod) return { ok: false, error: `${filename}: ${code} is not one of your modules.` }
+      moduleId = mod.id
+      const { data: a } = await supabase.from('assignments').select('id').eq('module_id', mod.id).eq('sheet', sheet).maybeSingle()
+      if (a) assignmentId = a.id
+      else if (looksLikeSolution(filename)) {
+        return { ok: false, error: `${filename}: there is no ${code} sheet ${sheet} yet, and a solutions file alone does not make one.` }
+      } else {
+        const { data: created, error } = await supabase
+          .from('assignments')
+          .upsert(
+            { user_id: userId, module_id: mod.id, sheet, external_id: assignmentExternalId(mod.id, sheet) },
+            { onConflict: 'user_id,external_id' },
+          )
+          .select('id')
+          .single()
+        if (error) return { ok: false, error: error.message }
+        assignmentId = created.id
+      }
+    }
+
+    if (assignmentId) {
       const { data: same } = await supabase
         .from('files')
         .select('id')
-        .eq('assignment_id', a.id)
+        .eq('assignment_id', assignmentId)
         .eq('filename', filename)
         .not('size_bytes', 'is', null)
         .limit(1)
       if (same?.length) return { ok: false, error: `${filename} is already there.` }
-      moduleId = a.module_id
-      pinned = true // dropped on this row by hand: the sorter never moves it
     }
-    const { data: created, error } = await supabase
-      .from('files')
-      .insert({
-        user_id: userId,
-        filename,
-        mime_type: contentType,
-        module_id: moduleId,
-        assignment_id: input.assignmentId ?? null,
-        pinned,
-        source: 'upload',
-      })
-      .select('id')
-      .single()
-    if (error) return { ok: false, error: error.message }
-    fileId = created.id
+
+    // A Minerva name with no bytes yet: fill that row instead of making a second one.
+    let nameOnly = supabase.from('files').select('id').eq('filename', filename).is('size_bytes', null).limit(1)
+    if (moduleId) nameOnly = nameOnly.eq('module_id', moduleId)
+    const { data: waiting } = await nameOnly
+    if (waiting?.length) {
+      fileId = waiting[0].id
+      const patch: Record<string, unknown> = { mime_type: contentType }
+      if (moduleId) patch.module_id = moduleId
+      if (assignmentId) patch.assignment_id = assignmentId
+      if (pinned) patch.pinned = true
+      const { error } = await supabase.from('files').update(patch).eq('id', fileId)
+      if (error) return { ok: false, error: error.message }
+    } else {
+      const { data: created, error } = await supabase
+        .from('files')
+        .insert({
+          user_id: userId,
+          filename,
+          mime_type: contentType,
+          module_id: moduleId,
+          assignment_id: assignmentId,
+          pinned,
+          source: 'upload',
+        })
+        .select('id')
+        .single()
+      if (error) return { ok: false, error: error.message }
+      fileId = created.id
+    }
   }
 
   const key = objectKey(userId, fileId!, filename)
   const { error: keyErr } = await supabase
     .from('files')
-    .update({ r2_key: key, mime_type: contentType, ...(input.fileId ? { filename } : {}) })
+    .update({ r2_key: key, mime_type: contentType, filename })
     .eq('id', fileId!)
   if (keyErr) return { ok: false, error: keyErr.message }
 

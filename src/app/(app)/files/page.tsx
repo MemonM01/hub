@@ -25,12 +25,13 @@ type Row = {
   summary: string | null
 }
 
-const BACK = encodeURIComponent('/files')
 
 export default async function FilesPage({ searchParams }: PageProps<'/files'>) {
   await requireUserId()
   const sp = await searchParams
   const q = (Array.isArray(sp.q) ? sp.q[0] : sp.q)?.trim().slice(0, 200) ?? ''
+  // The file page's back link returns here, search included.
+  const back = encodeURIComponent(q ? `/files?q=${encodeURIComponent(q)}` : '/files')
   const supabase = await createClient()
   let filesQuery = supabase
     .from('files')
@@ -81,7 +82,7 @@ export default async function FilesPage({ searchParams }: PageProps<'/files'>) {
           Needs a look <span className="tabular-nums">({needsLook.length})</span>
         </h2>
         {needsLook.length ? (
-          <FileTable rows={needsLook} codeOf={codeOf} />
+          <FileTable rows={needsLook} codeOf={codeOf} back={back} />
         ) : (
           <p className="text-sm text-muted">Nothing waiting.</p>
         )}
@@ -96,7 +97,7 @@ export default async function FilesPage({ searchParams }: PageProps<'/files'>) {
             {[...new Set(sorted.map((f) => f.module_id))].map((mid) => (
               <div key={mid ?? 'none'}>
                 <h3 className="mb-1.5 font-mono text-sm">{mid ? codeOf.get(mid) : 'No module'}</h3>
-                <FileTable rows={sorted.filter((f) => f.module_id === mid).sort(compareFiles)} codeOf={codeOf} />
+                <FileTable rows={sorted.filter((f) => f.module_id === mid).sort(compareFiles)} codeOf={codeOf} back={back} />
               </div>
             ))}
           </div>
@@ -114,7 +115,7 @@ export default async function FilesPage({ searchParams }: PageProps<'/files'>) {
             {names.map((n) => (
               <li key={n.id} className="flex items-center gap-3 px-4 py-2 text-sm text-muted">
                 <span className="hidden w-20 shrink-0 font-mono text-xs sm:block">{n.module_id ? codeOf.get(n.module_id) : ''}</span>
-                <Link href={`/files/${n.id}?from=${BACK}`} prefetch={false} className="min-w-0 flex-1 truncate hover:underline">
+                <Link href={`/files/${n.id}?from=${back}`} prefetch={false} className="min-w-0 flex-1 truncate hover:underline">
                   {n.title ?? n.filename}
                 </Link>
                 <span className="text-xs">Add the file</span>
@@ -127,7 +128,7 @@ export default async function FilesPage({ searchParams }: PageProps<'/files'>) {
   )
 }
 
-function FileTable({ rows, codeOf }: { rows: Row[]; codeOf: Map<string, string> }) {
+function FileTable({ rows, codeOf, back }: { rows: Row[]; codeOf: Map<string, string>; back: string }) {
   return (
     <ul className="divide-y divide-line rounded-lg border border-line">
       {rows.map((f) => (
@@ -136,7 +137,7 @@ function FileTable({ rows, codeOf }: { rows: Row[]; codeOf: Map<string, string> 
             {f.module_id ? codeOf.get(f.module_id) : ''}
           </span>
           {/* prefetch off so browser Back returns to where I opened the file from */}
-          <Link href={`/files/${f.id}?from=${BACK}`} prefetch={false} className="min-w-0 flex-1 truncate hover:underline">
+          <Link href={`/files/${f.id}?from=${back}`} prefetch={false} className="min-w-0 flex-1 truncate hover:underline">
             {f.title ?? f.filename}
           </Link>
           {f.kind ? <span className="hidden text-xs text-muted md:inline">{KIND_LABEL[f.kind] ?? f.kind}</span> : null}
