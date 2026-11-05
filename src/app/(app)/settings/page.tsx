@@ -5,6 +5,7 @@ import { appOrigin } from '@/lib/origin'
 import { formatDateTime } from '@/lib/format'
 import { BookmarkletInstaller } from '@/components/bookmarklets'
 import { RevokeButton } from '@/components/revoke-button'
+import { DisconnectButton } from '@/components/disconnect-button'
 
 export const instant = false
 export const metadata: Metadata = { title: 'Settings' }
@@ -29,6 +30,17 @@ export default async function SettingsPage() {
       .order('created_at', { ascending: false }),
   ])
   const tokens = (data ?? []) as Token[]
+  const [{ data: clients }, { data: oauthTokens }] = await Promise.all([
+    supabase.from('oauth_clients').select('client_id, client_name, created_at'),
+    supabase.from('oauth_tokens').select('client_id, prefix, last_used_at, revoked_at, refresh_expires_at, created_at').order('created_at', { ascending: false }),
+  ])
+  const apps = (clients ?? [])
+    .map((c) => {
+      const live = (oauthTokens ?? []).filter((t) => t.client_id === c.client_id && !t.revoked_at)
+      const lastUsed = (oauthTokens ?? []).filter((t) => t.client_id === c.client_id).map((t) => t.last_used_at).filter(Boolean).sort().pop() ?? null
+      return { ...c, live: live.length, prefix: live[0]?.prefix ?? null, lastUsed }
+    })
+    .filter((a) => a.live > 0)
   const active = tokens.filter((t) => !t.revoked_at)
   const revoked = tokens.filter((t) => t.revoked_at)
 
@@ -61,6 +73,30 @@ export default async function SettingsPage() {
           <li>Pin hub sync, click it, and paste the hub address ({origin}) and a sync token from above.</li>
           <li>Log in to Minerva in Chrome, then click hub sync and Sync Minerva now.</li>
         </ol>
+      </div>
+
+      <div className="space-y-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Assistant connector (MCP)</h2>
+        <p className="max-w-prose text-sm text-muted">
+          Add <code className="font-mono text-xs">{origin}/mcp</code> as a custom connector in Claude or Cursor. You approve it here,
+          and it can read your data and update only the learning profile.
+        </p>
+        {apps.length ? (
+          <ul className="divide-y divide-line rounded-lg border border-line">
+            {apps.map((a) => (
+              <li key={a.client_id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-sm">
+                <span className="font-medium">{a.client_name ?? 'App'}</span>
+                {a.prefix ? <code className="font-mono text-xs text-muted">{a.prefix}…</code> : null}
+                <span className="text-xs text-muted">{a.lastUsed ? `Last used ${formatDateTime(a.lastUsed)}` : 'Not used yet'}</span>
+                <span className="ml-auto">
+                  <DisconnectButton clientId={a.client_id} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted">No apps connected.</p>
+        )}
       </div>
 
       <div className="space-y-2">
