@@ -25,7 +25,9 @@ const SHEET_KINDS: Kind[] = ['worksheet', 'submission_template', 'solution', 'la
 
 // Below this the file waits under "Needs a look" instead of being filed.
 export const CONFIDENCE_TO_FILE = 0.65
-const MODEL = process.env.SORTER_MODEL || 'anthropic/claude-haiku-5.5'
+// Free-tier AI Gateway accounts cannot use every model (Claude Haiku 5.5 is refused).
+// Gemini 2.5 Flash Lite is allowed on free credits and handles structured output well.
+const MODEL = process.env.SORTER_MODEL || 'google/gemini-2.5-flash-lite'
 
 const Verdict = z.object({
   summary: z.string().describe('Two or three plain sentences on what this file is and covers.'),
