@@ -6,6 +6,8 @@ import { FOLDERS, STATUS_LABEL, type FileRow, type FolderKey } from '@/lib/types
 import { compareSheets } from '@/lib/sheets'
 import { formatBytes, formatDate } from '@/lib/format'
 import { compareFiles, groupOf } from '@/lib/order'
+import { lectureName } from '@/lib/lecture-name'
+import { TopicEditor } from '@/components/topic-editor'
 
 export const instant = false
 
@@ -35,11 +37,11 @@ export default async function FolderPage({ params }: PageProps<'/modules/[code]/
 
       {key === 'videos' ? (
         lectures.length ? (
-          <ul className="divide-y divide-line rounded-lg border border-line">
+          <ul className="divide-y divide-line rounded-xl bg-surface shadow-[0_0_0_1px_var(--line)]">
             {lectures.map((l) => (
               <li key={l.id} className="flex items-center gap-3 px-4 py-2.5">
                 <Link href={`/lectures/${l.id}`} prefetch={false} className="min-w-0 flex-1 truncate text-sm hover:underline">
-                  {l.title}
+                  {lectureName(l.title)}
                 </Link>
                 <span className="text-xs text-muted">{formatDate(l.delivered_at)}</span>
                 {l.lecture_progress?.watched ? <span className="text-xs text-accent">Watched</span> : null}
@@ -52,13 +54,13 @@ export default async function FolderPage({ params }: PageProps<'/modules/[code]/
       ) : key === 'assignments' ? (
         <>
           {assignments.filter((a) => a.status !== 'cancelled').length ? (
-            <ul className="divide-y divide-line rounded-lg border border-line">
+            <ul className="divide-y divide-line rounded-xl bg-surface shadow-[0_0_0_1px_var(--line)]">
               {assignments
                 .filter((a) => a.status !== 'cancelled')
                 .sort((a, b) => compareSheets(a.sheet, b.sheet))
                 .map((a) => (
                   <li key={a.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                    <span className="w-10 font-mono tabular-nums">{a.sheet}</span>
+                    <span className="w-10 font-semibold tabular-nums">{a.sheet}</span>
                     <span className="min-w-0 flex-1 truncate">{a.title ?? (a.is_quiz ? 'Quiz' : 'Worksheet')}</span>
                     <span className="text-xs text-muted">{STATUS_LABEL[a.status]}</span>
                   </li>
@@ -70,7 +72,10 @@ export default async function FolderPage({ params }: PageProps<'/modules/[code]/
           <FileList files={inFolder} back={here} />
         </>
       ) : key === 'topics' ? (
-        <TopicList files={files} back={here} />
+        <div className="space-y-4">
+          <TopicEditor moduleId={mod.id} code={mod.code} topics={mod.topics ?? []} />
+          <TopicList files={files} topics={mod.topics ?? []} back={here} />
+        </div>
       ) : key === 'worksheets' && inFolder.length ? (
         <GroupedList files={inFolder} back={here} />
       ) : inFolder.length ? (
@@ -85,7 +90,7 @@ export default async function FolderPage({ params }: PageProps<'/modules/[code]/
 function FileList({ files, back }: { files: FileRow[]; back: string }) {
   if (!files.length) return null
   return (
-    <ul className="divide-y divide-line rounded-lg border border-line">
+    <ul className="divide-y divide-line rounded-xl bg-surface shadow-[0_0_0_1px_var(--line)]">
       {files.map((f) => (
         <li key={f.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
           <Link
@@ -122,15 +127,37 @@ function GroupedList({ files, back }: { files: (FileRow & { week: number | null 
   )
 }
 
-function TopicList({ files, back }: { files: (FileRow & { week: number | null })[]; back: string }) {
-  const weeks = [...new Set(files.map((f) => f.week).filter((w): w is number => w != null))].sort((a, b) => a - b)
-  if (!weeks.length) return <Empty text="Topics appear here once files are sorted by week (step 6)." />
+function TopicList({
+  files,
+  topics,
+  back,
+}: {
+  files: (FileRow & { week: number | null; topic: string | null })[]
+  topics: string[]
+  back: string
+}) {
+  // Topics in the order they were taught, then any other topics, then by week for the rest.
+  const extra = [...new Set(files.map((f) => f.topic).filter((t): t is string => !!t && !topics.includes(t)))].sort()
+  const groups: { key: string; label: string; files: typeof files }[] = [...topics, ...extra].map((t) => ({
+    key: t,
+    label: t,
+    files: files.filter((f) => f.topic === t),
+  }))
+  const rest = files.filter((f) => !f.topic)
+  const weeks = [...new Set(rest.map((f) => f.week).filter((w): w is number => w != null))].sort((a, b) => a - b)
+  for (const w of weeks) groups.push({ key: `w${w}`, label: `Week ${w}`, files: rest.filter((f) => f.week === w) })
+  const loose = rest.filter((f) => f.week == null)
+  if (loose.length) groups.push({ key: 'none', label: 'No topic yet', files: loose })
+  const shown = groups.filter((g) => g.files.length)
+  if (!shown.length) return <Empty text="Nothing here yet." />
   return (
-    <div className="space-y-4">
-      {weeks.map((w) => (
-        <div key={w}>
-          <h2 className="mb-1.5 text-sm font-medium">Week {w}</h2>
-          <FileList files={files.filter((f) => f.week === w).sort(compareFiles)} back={back} />
+    <div className="space-y-6">
+      {shown.map((g) => (
+        <div key={g.key}>
+          <h2 className="mb-2 text-base font-semibold">
+            {g.label} <span className="text-sm font-normal text-muted">{g.files.length}</span>
+          </h2>
+          <FileList files={[...g.files].sort(compareFiles)} back={back} />
         </div>
       ))}
     </div>

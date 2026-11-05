@@ -11,7 +11,7 @@ export function HubMark({ px }: { px: number }) {
       style={{
         width: px,
         height: px,
-        background: '#1f5f5b',
+        background: '#24508a',
         borderRadius: 8 * u,
         display: 'flex',
         alignItems: 'center',
@@ -19,16 +19,16 @@ export function HubMark({ px }: { px: number }) {
         position: 'relative',
       }}
     >
-      <div style={{ position: 'absolute', width: 2.5 * u, height: 16 * u, background: '#f7f6f2', borderRadius: u }} />
-      <div style={{ position: 'absolute', width: 16 * u, height: 2.5 * u, background: '#f7f6f2', borderRadius: u }} />
+      <div style={{ position: 'absolute', width: 2.5 * u, height: 16 * u, background: '#f4f5f3', borderRadius: u }} />
+      <div style={{ position: 'absolute', width: 16 * u, height: 2.5 * u, background: '#f4f5f3', borderRadius: u }} />
       <div
         style={{
           position: 'absolute',
           width: 11.5 * u,
           height: 11.5 * u,
           borderRadius: 999,
-          background: '#1f5f5b',
-          border: `${2.5 * u}px solid #f7f6f2`,
+          background: '#24508a',
+          border: `${2.5 * u}px solid #f4f5f3`,
         }}
       />
     </div>

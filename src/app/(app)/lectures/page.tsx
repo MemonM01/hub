@@ -6,6 +6,9 @@ import { getModules } from '@/lib/data'
 import { parseModuleCode } from '@/lib/sheets'
 import { formatDate } from '@/lib/format'
 import { ArchiveFolderButton, FolderMatch, WatchedToggle } from '@/components/lecture-controls'
+import { lectureName } from '@/lib/lecture-name'
+import { moduleColors } from '@/lib/module-color'
+import { ModuleTag } from '@/components/module-tag'
 
 export const instant = false
 export const metadata: Metadata = { title: 'Lectures' }
@@ -42,20 +45,12 @@ export default async function LecturesPage() {
   const archivedFolder = new Set(folders.filter((f) => f.archived).map((f) => f.id))
   const visible = lectures.filter((l) => !l.folder_id || !archivedFolder.has(l.folder_id))
   const unmatched = folders.filter((f) => !f.module_id && !f.archived)
+  const color = moduleColors(modules.map((m) => m.code))
   const countIn = (folderId: string) => lectures.filter((l) => l.folder_id === folderId).length
 
   return (
     <section className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Lectures</h1>
-        <p className="mt-1 text-sm text-muted">
-          Lectures arrive when you click the Panopto bookmarklet (install it in{' '}
-          <Link href="/settings" prefetch={false} className="underline">
-            Settings
-          </Link>
-          ).
-        </p>
-      </div>
+      <h1 className="text-2xl font-semibold tracking-tight">Lectures</h1>
 
       {unmatched.length ? (
         <div className="rounded-lg border border-accent p-4">
@@ -80,12 +75,13 @@ export default async function LecturesPage() {
         const watched = rows.filter((l) => l.lecture_progress?.watched).length
         return (
           <div key={m.id}>
-            <h2 className="mb-2 flex items-baseline gap-2">
-              <Link href={`/modules/${m.code}/videos`} prefetch={false} className="font-mono font-medium hover:underline">
-                {m.code}
+            <h2 className="mb-2 flex items-baseline gap-3">
+              <Link href={`/modules/${m.code}/videos`} prefetch={false} className="hover:underline">
+                <ModuleTag code={m.code} color={color.get(m.code)} className="text-base" />
               </Link>
-              <span className="text-xs text-muted">
-                {watched}/{rows.length} watched
+              <span className="text-sm text-muted">{m.name}</span>
+              <span className="ml-auto text-sm tabular-nums text-muted">
+                {watched} of {rows.length} watched
               </span>
             </h2>
             <LectureList rows={rows} />
@@ -100,12 +96,20 @@ export default async function LecturesPage() {
         </div>
       ) : null}
 
-      {!lectures.length ? <p className="text-sm text-muted">No lectures yet.</p> : null}
+      {!lectures.length ? (
+        <p className="rounded-xl border border-dashed border-line px-5 py-8 text-sm text-muted">
+          No lectures yet. Open Panopto, log in, and click the hub · Panopto bookmark (make it in{' '}
+          <Link href="/settings" prefetch={false} className="underline">
+            Settings
+          </Link>
+          ).
+        </p>
+      ) : null}
 
       {folders.length ? (
         <details>
           <summary className="cursor-pointer text-sm text-muted">Panopto folders ({folders.length})</summary>
-          <ul className="mt-2 divide-y divide-line rounded-lg border border-line">
+          <ul className="mt-2 divide-y divide-line rounded-xl bg-surface shadow-[0_0_0_1px_var(--line)]">
             {folders.map((f) => (
               <li key={f.id} className={`flex flex-wrap items-center gap-3 px-4 py-2 text-sm ${f.archived ? 'opacity-60' : ''}`}>
                 <span className="min-w-0 flex-1 truncate">{f.name}</span>
@@ -122,15 +126,15 @@ export default async function LecturesPage() {
 
 function LectureList({ rows }: { rows: Lecture[] }) {
   return (
-    <ul className="divide-y divide-line rounded-lg border border-line">
+    <ul className="divide-y divide-line rounded-xl bg-surface shadow-[0_0_0_1px_var(--line)]">
       {rows.map((l) => (
         <li key={l.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-sm">
           <Link href={`/lectures/${l.id}`} prefetch={false} className="min-w-0 flex-1 truncate hover:underline">
-            {l.title}
+            {lectureName(l.title)}
           </Link>
           <span className="text-xs text-muted">{formatDate(l.delivered_at)}</span>
           <span className="hidden w-14 text-right text-xs text-muted sm:inline">{minutes(l.duration_seconds)}</span>
-          {l.transcript ? <span className="hidden text-[10px] uppercase tracking-wide text-muted sm:inline">Transcript</span> : null}
+
           <WatchedToggle lectureId={l.id} watched={!!l.lecture_progress?.watched} />
         </li>
       ))}

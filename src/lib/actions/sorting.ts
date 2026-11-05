@@ -59,7 +59,7 @@ export async function resortFile(fileId: string) {
 /** Filed by hand: pinned, so the sorter never moves it again. */
 export async function fileManually(
   fileId: string,
-  input: { moduleId: string | null; week: number | null; kind: string | null; sheet: string | null },
+  input: { moduleId: string | null; week: number | null; kind: string | null; sheet: string | null; topic?: string | null },
 ): Promise<{ error?: string }> {
   const userId = await requireUserId()
   const supabase = await createClient()
@@ -92,6 +92,7 @@ export async function fileManually(
       week: input.week,
       kind,
       assignment_id: assignmentId,
+      topic: input.topic?.slice(0, 80) ?? null,
       pinned: true,
       sort_status: 'sorted',
     })

@@ -38,6 +38,7 @@ const Verdict = z.object({
     .string()
     .nullable()
     .describe('Worksheet or exercise sheet number like 1.2, only if this is a sheet, its template, or its solutions.'),
+  topic: z.string().nullable().describe('One of the module topics given, or null if none fits.'),
   confidence: z.number().min(0).max(1).describe('How sure you are about module and kind together.'),
 })
 type Verdict = z.infer<typeof Verdict>
@@ -55,6 +56,7 @@ type FileRow = {
   week: number | null
   pinned: boolean
   source: string
+  topic: string | null
 }
 
 function guessKind(filename: string): Kind | null {
@@ -67,7 +69,7 @@ function guessKind(filename: string): Kind | null {
   return null
 }
 
-async function askModel(file: FileRow, text: string | null, modules: { code: string; name: string | null }[]) {
+async function askModel(file: FileRow, text: string | null, modules: { code: string; name: string | null; topics: string[] }[]) {
   if (!process.env.AI_GATEWAY_API_KEY && !process.env.VERCEL_OIDC_TOKEN) return null
   const { output } = await generateText({
     model: MODEL,
@@ -75,7 +77,7 @@ async function askModel(file: FileRow, text: string | null, modules: { code: str
     system:
       'You file a University of Leeds student\'s course files. Be accurate. If the text does not support an answer, use null and a lower confidence. Never invent a module code that is not in the list.',
     prompt: [
-      `Modules: ${modules.map((m) => `${m.code}${m.name ? ` (${m.name})` : ''}`).join(', ')}`,
+      `Modules: ${modules.map((m) => `${m.code}${m.name ? ` (${m.name})` : ''}${m.topics?.length ? ` topics: ${m.topics.join(' / ')}` : ''}`).join(', ')}`,
       `Filename: ${file.filename}`,
       file.title ? `Title on Minerva: ${file.title}` : '',
       file.week ? `Minerva folder suggests week ${file.week}` : '',
@@ -104,7 +106,7 @@ async function thumbnail(file: FileRow, bytes: Uint8Array) {
 export async function sortFile(db: SupabaseClient, userId: string, fileId: string) {
   const { data } = await db
     .from('files')
-    .select('id, user_id, filename, title, mime_type, size_bytes, r2_key, module_id, assignment_id, week, pinned, source')
+    .select('id, user_id, filename, title, mime_type, size_bytes, r2_key, module_id, assignment_id, week, pinned, source, topic')
     .eq('id', fileId)
     .eq('user_id', userId)
     .maybeSingle()
@@ -112,7 +114,7 @@ export async function sortFile(db: SupabaseClient, userId: string, fileId: strin
   if (!file || file.size_bytes == null || !file.r2_key) return { skipped: true }
 
   try {
-    const { data: mods } = await db.from('modules').select('id, code, name').eq('user_id', userId)
+    const { data: mods } = await db.from('modules').select('id, code, name, topics').eq('user_id', userId)
     const modules = mods ?? []
     const byCode = new Map(modules.map((m) => [m.code, m.id]))
     const codeOf = new Map(modules.map((m) => [m.id, m.code]))
@@ -171,6 +173,8 @@ export async function sortFile(db: SupabaseClient, userId: string, fileId: strin
 
     if (file_it && !file.pinned) {
       const moduleId = byCode.get(moduleCode!)!
+      const topics = (modules.find((m) => m.id === moduleId)?.topics ?? []) as string[]
+      if (!file.topic && verdict?.topic && topics.includes(verdict.topic)) update.topic = verdict.topic
       update.module_id = moduleId
       update.kind = kind
       update.week = week

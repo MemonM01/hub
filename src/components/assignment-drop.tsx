@@ -28,10 +28,7 @@ export function AssignmentsDropZone({ children }: { children: ReactNode }) {
       }}
       className={`relative rounded-lg transition ${over ? 'outline-2 outline-dashed outline-accent outline-offset-4' : ''}`}
     >
-      <p className="mb-3 text-xs text-muted">
-        Drop a file anywhere here to file it by the module code and sheet in its name (like COMP2860_Worksheet1_7.pdf), or drop
-        it on one row to attach it to that sheet.
-      </p>
+      <p className="mb-4 text-sm text-muted">Drop a worksheet here to file it by its name, or onto a sheet to attach it there.</p>
       <UploadList items={items} className="mb-3" />
       {children}
     </div>

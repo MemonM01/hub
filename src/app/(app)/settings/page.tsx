@@ -49,7 +49,7 @@ export default async function SettingsPage() {
       <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
 
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Bookmarklets</h2>
+        <h2 className="text-base font-semibold">Bookmarklets</h2>
         <p className="max-w-prose text-sm text-muted">
           The bookmarklets read Panopto and Minerva from your own logged-in browser and send what they find here with a
           sync token. Your university password never touches this app.
@@ -58,7 +58,7 @@ export default async function SettingsPage() {
       </div>
 
       <div className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">hub extension (Chrome)</h2>
+        <h2 className="text-base font-semibold">hub extension (Chrome)</h2>
         <p className="max-w-prose text-sm text-muted">
           Minerva serves files from a separate server that a bookmarklet is not allowed to read. The extension can, so it
           copies the files too. Install it once:
@@ -76,7 +76,7 @@ export default async function SettingsPage() {
       </div>
 
       <div className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Assistant connector (MCP)</h2>
+        <h2 className="text-base font-semibold">Assistant connector (MCP)</h2>
         <p className="max-w-prose text-sm text-muted">
           Add <code className="font-mono text-xs">{origin}/mcp</code> as a custom connector in Claude or Cursor. You approve it here,
           and it can read your data and update only the learning profile.
@@ -100,7 +100,7 @@ export default async function SettingsPage() {
       </div>
 
       <div className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Sync tokens</h2>
+        <h2 className="text-base font-semibold">Sync tokens</h2>
         {active.length ? (
           <ul className="divide-y divide-line rounded-lg border border-line">
             {active.map((t) => (

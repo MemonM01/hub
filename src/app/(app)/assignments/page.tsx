@@ -1,48 +1,48 @@
-import Link from "next/link";
-import type { Metadata } from "next";
-import { requireUserId } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
-import { getAssignments, getModules } from "@/lib/data";
-import { compareSheets } from "@/lib/sheets";
-import { formatDateTime } from "@/lib/format";
-import { AddAssignmentForm } from "@/components/add-assignment-form";
-import { StatusSelect } from "@/components/status-select";
-import {
-  AssignmentRowDrop,
-  AssignmentsDropZone,
-} from "@/components/assignment-drop";
+import Link from 'next/link'
+import type { Metadata } from 'next'
+import { requireUserId } from '@/lib/auth'
+import { createClient } from '@/lib/supabase/server'
+import { getAssignments, getModules } from '@/lib/data'
+import { compareSheets } from '@/lib/sheets'
+import { formatDateTime } from '@/lib/format'
+import { AddAssignmentForm } from '@/components/add-assignment-form'
+import { StatusSelect } from '@/components/status-select'
+import { AssignmentRowDrop, AssignmentsDropZone } from '@/components/assignment-drop'
+import { moduleColors } from '@/lib/module-color'
+import { ModuleTag } from '@/components/module-tag'
 
-export const instant = false;
-export const metadata: Metadata = { title: "Assignments" };
+export const instant = false
+export const metadata: Metadata = { title: 'Assignments' }
 
 type AttachedFile = {
-  id: string;
-  filename: string;
-  title: string | null;
-  assignment_id: string;
-};
+  id: string
+  filename: string
+  title: string | null
+  assignment_id: string
+}
 
 export default async function AssignmentsPage() {
-  await requireUserId();
-  const supabase = await createClient();
+  await requireUserId()
+  const supabase = await createClient()
   const [modules, assignments, filesRes] = await Promise.all([
     getModules(),
     getAssignments(),
     supabase
-      .from("files")
-      .select("id, filename, title, assignment_id")
-      .not("assignment_id", "is", null)
-      .not("size_bytes", "is", null), // names without bytes are not files
-  ]);
-  const files = (filesRes.data ?? []) as AttachedFile[];
-  const visible = assignments.filter((a) => a.status !== "cancelled");
+      .from('files')
+      .select('id, filename, title, assignment_id')
+      .not('assignment_id', 'is', null)
+      .not('size_bytes', 'is', null), // names without bytes are not files
+  ])
+  const files = (filesRes.data ?? []) as AttachedFile[]
+  const visible = assignments.filter((a) => a.status !== 'cancelled')
+  const color = moduleColors(modules.map((m) => m.code))
 
   return (
     <section className="space-y-6">
       <h1 className="text-2xl font-semibold tracking-tight">Assignments</h1>
       {modules.length === 0 ? (
         <p className="text-sm text-muted">
-          Add a module first on{" "}
+          Add a module first on{' '}
           <Link href="/modules" prefetch={false} className="underline">
             Modules
           </Link>
@@ -55,51 +55,33 @@ export default async function AssignmentsPage() {
       <AssignmentsDropZone>
         <div className="space-y-6">
           {modules.map((m) => {
-            const rows = visible
-              .filter((a) => a.module_id === m.id)
-              .sort((a, b) => compareSheets(a.sheet, b.sheet));
-            if (!rows.length) return null;
+            const rows = visible.filter((a) => a.module_id === m.id).sort((a, b) => compareSheets(a.sheet, b.sheet))
+            if (!rows.length) return null
             return (
               <div key={m.id}>
                 <h2 className="mb-2 flex items-baseline gap-2">
-                  <Link
-                    href={`/modules/${m.code}`}
-                    prefetch={false}
-                    className="font-mono font-medium hover:underline"
-                  >
-                    {m.code}
+                  <Link href={`/modules/${m.code}`} prefetch={false} className="hover:underline">
+                    <ModuleTag code={m.code} color={color.get(m.code)} className="text-base" />
                   </Link>
-                  {m.name ? (
-                    <span className="text-sm text-muted">{m.name}</span>
-                  ) : null}
+                  {m.name ? <span className="text-sm text-muted">{m.name}</span> : null}
                 </h2>
-                <ul className="divide-y divide-line rounded-lg border border-line">
+                <ul className="divide-y divide-line rounded-xl bg-surface shadow-[0_0_0_1px_var(--line)]">
                   {rows.map((a) => {
-                    const attached = files.filter(
-                      (f) => f.assignment_id === a.id,
-                    );
-                    const back = "/assignments";
+                    const attached = files.filter((f) => f.assignment_id === a.id)
+                    const back = '/assignments'
                     return (
                       <AssignmentRowDrop key={a.id} assignmentId={a.id}>
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                          <span className="w-10 font-mono text-sm tabular-nums">
-                            {a.sheet}
-                          </span>
+                          <span className="w-10 text-sm font-semibold tabular-nums">{a.sheet}</span>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 text-sm">
-                              <span className="truncate">
-                                {a.title ?? (a.is_quiz ? "Quiz" : "Worksheet")}
-                              </span>
+                              <span className="truncate">{a.title ?? (a.is_quiz ? 'Quiz' : 'Worksheet')}</span>
                               {a.is_quiz ? (
-                                <span className="rounded bg-line px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
-                                  Quiz
-                                </span>
+                                <span className="rounded bg-line px-1.5 py-0.5 text-[10px]">Quiz</span>
                               ) : null}
                             </div>
                             <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted">
-                              {a.due_at ? (
-                                <span>Due {formatDateTime(a.due_at)}</span>
-                              ) : null}
+                              {a.due_at ? <span>Due {formatDateTime(a.due_at)}</span> : null}
                               {attached.length ? (
                                 attached.map((f) => (
                                   <Link
@@ -119,17 +101,15 @@ export default async function AssignmentsPage() {
                           <StatusSelect id={a.id} status={a.status} />
                         </div>
                       </AssignmentRowDrop>
-                    );
+                    )
                   })}
                 </ul>
               </div>
-            );
+            )
           })}
         </div>
       </AssignmentsDropZone>
-      {modules.length > 0 && visible.length === 0 ? (
-        <p className="text-sm text-muted">No assignments yet.</p>
-      ) : null}
+      {modules.length > 0 && visible.length === 0 ? <p className="text-sm text-muted">No assignments yet.</p> : null}
     </section>
-  );
+  )
 }

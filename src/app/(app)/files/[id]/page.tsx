@@ -11,6 +11,7 @@ import { Uploader } from '@/components/uploader'
 import { DeleteFileButton } from '@/components/delete-file-button'
 import { FilingForm } from '@/components/sort-controls'
 import { getModules } from '@/lib/data'
+import { KIND_LABEL } from '@/lib/types'
 
 export const instant = false
 
@@ -31,7 +32,9 @@ type FileDetail = {
   sort_status: string
   sort_confidence: number | null
   sort_error: string | null
-  modules: { code: string } | null
+  topic: string | null
+  source_url: string | null
+  modules: { code: string; topics: string[] } | null
   assignments: { sheet: string } | null
 }
 
@@ -43,7 +46,7 @@ export default async function FilePage({ params, searchParams }: PageProps<'/fil
   const { data } = await supabase
     .from('files')
     .select(
-      'id, filename, title, mime_type, size_bytes, r2_key, kind, week, source, summary, pinned, created_at, module_id, sort_status, sort_confidence, sort_error, modules(code), assignments(sheet)',
+      'id, filename, title, mime_type, size_bytes, r2_key, kind, week, source, summary, pinned, created_at, module_id, sort_status, sort_confidence, sort_error, topic, source_url, modules(code, topics), assignments(sheet)',
     )
     .eq('id', id)
     .maybeSingle()
@@ -64,7 +67,8 @@ export default async function FilePage({ params, searchParams }: PageProps<'/fil
           {file.title ? <Meta label="File" value={file.filename} /> : null}
           {file.modules ? <Meta label="Module" value={file.modules.code} /> : null}
           {file.assignments ? <Meta label="Sheet" value={file.assignments.sheet} /> : null}
-          {file.kind ? <Meta label="Kind" value={file.kind.replace(/_/g, ' ')} /> : null}
+          {file.kind ? <Meta label="Kind" value={KIND_LABEL[file.kind] ?? file.kind} /> : null}
+          {file.topic ? <Meta label="Topic" value={file.topic} /> : null}
           {file.week != null ? <Meta label="Week" value={String(file.week)} /> : null}
           {hasBytes ? <Meta label="Size" value={formatBytes(file.size_bytes!)} /> : null}
           <Meta label="Added" value={formatDateTime(file.created_at)} />
@@ -78,6 +82,11 @@ export default async function FilePage({ params, searchParams }: PageProps<'/fil
             <a href={`/files-raw/${file.id}?download=1`} className="btn-primary">
               Download
             </a>
+            {file.source_url ? (
+              <a href={file.source_url} target="_blank" rel="noreferrer" className="rounded-md border border-line px-3 py-1.5 text-sm">
+                Open original
+              </a>
+            ) : null}
             {kind === 'pdf' || kind === 'image' ? (
               <a href={`/files-raw/${file.id}`} target="_blank" rel="noreferrer" className="rounded-md border border-line px-3 py-1.5 text-sm">
                 Open in new tab
@@ -101,9 +110,20 @@ export default async function FilePage({ params, searchParams }: PageProps<'/fil
           <FilingForm
             fileId={file.id}
             modules={await getModules()}
-            current={{ moduleId: file.module_id, week: file.week, kind: file.kind, sheet: file.assignments?.sheet ?? null }}
+            current={{ moduleId: file.module_id, week: file.week, kind: file.kind, sheet: file.assignments?.sheet ?? null, topic: file.topic }}
+            topics={file.modules?.topics ?? []}
           />
-          <Preview id={file.id} r2Key={file.r2_key!} kind={kind} />
+          {file.source_url && kind === 'html' ? (
+            // Web slides (Quarto, reveal.js) need their own scripts and styles: show the original page.
+            <iframe
+              src={file.source_url}
+              title="Original page"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+              className="aspect-[16/10] w-full rounded-xl border border-line bg-white"
+            />
+          ) : (
+            <Preview id={file.id} r2Key={file.r2_key!} kind={kind} />
+          )}
         </>
       ) : (
         <div className="space-y-3 rounded-lg border border-dashed border-line p-4">
@@ -182,7 +202,7 @@ async function Preview({ id, r2Key, kind }: { id: string; r2Key: string; kind: P
     <ol className="grid gap-3 sm:grid-cols-2">
       {data.slides.map((s) => (
         <li key={s.n} className="aspect-[16/10] overflow-auto rounded-lg border border-line bg-white p-4 text-black">
-          <div className="mb-1 text-[10px] uppercase tracking-wide text-neutral-500">Slide {s.n}</div>
+          <div className="mb-1 text-[10px] text-neutral-500">Slide {s.n}</div>
           {s.lines.length ? (
             <>
               <p className="text-sm font-semibold">{s.lines[0]}</p>

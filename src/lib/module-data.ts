@@ -19,7 +19,7 @@ export async function getModuleBundle(rawCode: string) {
 
   const { data: mod } = await supabase
     .from('modules')
-    .select('id, code, name, archived')
+    .select('id, code, name, archived, topics')
     .eq('code', code)
     .maybeSingle()
   if (!mod) notFound()
@@ -27,7 +27,7 @@ export async function getModuleBundle(rawCode: string) {
   const [files, lectures, assignments] = await Promise.all([
     supabase
       .from('files')
-      .select('id, module_id, assignment_id, filename, title, kind, size_bytes, sort_status, created_at, week')
+      .select('id, module_id, assignment_id, filename, title, kind, size_bytes, sort_status, created_at, week, topic, source_url')
       .eq('module_id', mod.id)
       .not('size_bytes', 'is', null) // a name without bytes is not a file
       .order('created_at', { ascending: false }),
@@ -43,8 +43,8 @@ export async function getModuleBundle(rawCode: string) {
   ])
 
   return {
-    module: mod as Module,
-    files: (files.data ?? []) as (FileRow & { week: number | null })[],
+    module: mod as Module & { topics: string[] },
+    files: (files.data ?? []) as (FileRow & { week: number | null; topic: string | null; source_url: string | null })[],
     lectures: (lectures.data ?? []) as unknown as LectureRow[],
     assignments: (assignments.data ?? []) as Assignment[],
   }

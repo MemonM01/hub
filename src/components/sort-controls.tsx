@@ -66,10 +66,12 @@ export function FilingForm({
   fileId,
   modules,
   current,
+  topics = [],
 }: {
   fileId: string
   modules: Module[]
-  current: { moduleId: string | null; week: number | null; kind: string | null; sheet: string | null }
+  current: { moduleId: string | null; week: number | null; kind: string | null; sheet: string | null; topic?: string | null }
+  topics?: string[]
 }) {
   const router = useRouter()
   const [pending, start] = useTransition()
@@ -77,7 +79,7 @@ export function FilingForm({
   const [saved, setSaved] = useState(false)
   return (
     <form
-      className="flex flex-wrap items-end gap-2 rounded-lg border border-line p-3"
+      className="flex flex-wrap items-end gap-2 rounded-xl bg-surface p-3 shadow-[0_0_0_1px_var(--line)]"
       action={(fd) =>
         start(async () => {
           const week = Number(fd.get('week'))
@@ -86,6 +88,7 @@ export function FilingForm({
             week: Number.isInteger(week) && week > 0 ? week : null,
             kind: String(fd.get('kind') || '') || null,
             sheet: String(fd.get('sheet') || '').trim() || null,
+            topic: String(fd.get('topic') || '').trim() || null,
           })
           if (res.error) setError(res.error)
           else {
@@ -117,6 +120,15 @@ export function FilingForm({
             </option>
           ))}
         </select>
+      </label>
+      <label className="block">
+        <span className="text-xs text-muted">Topic</span>
+        <input name="topic" list={`ft-${fileId}`} defaultValue={current.topic ?? ''} className="field mt-1 w-44 py-1.5 text-sm" />
+        <datalist id={`ft-${fileId}`}>
+          {topics.map((t) => (
+            <option key={t} value={t} />
+          ))}
+        </datalist>
       </label>
       <label className="block">
         <span className="text-xs text-muted">Week</span>

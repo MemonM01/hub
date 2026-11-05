@@ -8,7 +8,7 @@ export const instant = false
 export default function AppLayout({ children }: LayoutProps<'/'>) {
   return (
     <>
-      <header className="sticky top-0 z-10 border-b border-line bg-paper/90 backdrop-blur">
+      <header className="sticky top-0 z-10 border-b border-line bg-surface/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2">
           <Link href="/" prefetch={false} className="flex shrink-0 items-center gap-2">
             <Mark className="h-6 w-6" />

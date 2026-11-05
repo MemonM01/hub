@@ -78,7 +78,7 @@ export default async function FilesPage({ searchParams }: PageProps<'/files'>) {
       )}
 
       <div>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
+        <h2 className="mb-2 text-base font-semibold">
           Needs a look <span className="tabular-nums">({needsLook.length})</span>
         </h2>
         {needsLook.length ? (
@@ -89,14 +89,14 @@ export default async function FilesPage({ searchParams }: PageProps<'/files'>) {
       </div>
 
       <div>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
+        <h2 className="mb-2 text-base font-semibold">
           Sorted <span className="tabular-nums">({sorted.length})</span>
         </h2>
         {sorted.length ? (
           <div className="space-y-4">
             {[...new Set(sorted.map((f) => f.module_id))].map((mid) => (
               <div key={mid ?? 'none'}>
-                <h3 className="mb-1.5 font-mono text-sm">{mid ? codeOf.get(mid) : 'No module'}</h3>
+                <h3 className="mb-1.5 text-sm font-semibold">{mid ? codeOf.get(mid) : 'No module'}</h3>
                 <FileTable rows={sorted.filter((f) => f.module_id === mid).sort(compareFiles)} codeOf={codeOf} back={back} />
               </div>
             ))}
@@ -114,7 +114,7 @@ export default async function FilesPage({ searchParams }: PageProps<'/files'>) {
           <ul className="mt-2 divide-y divide-line rounded-lg border border-dashed border-line">
             {names.map((n) => (
               <li key={n.id} className="flex items-center gap-3 px-4 py-2 text-sm text-muted">
-                <span className="hidden w-20 shrink-0 font-mono text-xs sm:block">{n.module_id ? codeOf.get(n.module_id) : ''}</span>
+                <span className="hidden w-20 shrink-0 text-xs font-semibold sm:block">{n.module_id ? codeOf.get(n.module_id) : ''}</span>
                 <Link href={`/files/${n.id}?from=${back}`} prefetch={false} className="min-w-0 flex-1 truncate hover:underline">
                   {n.title ?? n.filename}
                 </Link>
@@ -130,10 +130,10 @@ export default async function FilesPage({ searchParams }: PageProps<'/files'>) {
 
 function FileTable({ rows, codeOf, back }: { rows: Row[]; codeOf: Map<string, string>; back: string }) {
   return (
-    <ul className="divide-y divide-line rounded-lg border border-line">
+    <ul className="divide-y divide-line rounded-xl bg-surface shadow-[0_0_0_1px_var(--line)]">
       {rows.map((f) => (
         <li key={f.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-          <span className="hidden w-20 shrink-0 font-mono text-xs sm:block">
+          <span className="hidden w-20 shrink-0 text-xs font-semibold sm:block">
             {f.module_id ? codeOf.get(f.module_id) : ''}
           </span>
           {/* prefetch off so browser Back returns to where I opened the file from */}

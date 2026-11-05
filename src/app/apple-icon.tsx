@@ -8,7 +8,7 @@ export default function AppleIcon() {
   // iOS rounds the corners itself, so fill the whole square.
   return new ImageResponse(
     (
-      <div style={{ width: 180, height: 180, display: 'flex', background: '#1f5f5b' }}>
+      <div style={{ width: 180, height: 180, display: 'flex', background: '#24508a' }}>
         <HubMark px={180} />
       </div>
     ),
