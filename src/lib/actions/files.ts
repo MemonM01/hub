@@ -1,6 +1,9 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { sortFile } from '@/lib/sorter'
 import { requireUserId } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { MAX_UPLOAD_BYTES, deleteObject, headObject, objectKey, signPut } from '@/lib/r2'
@@ -84,7 +87,7 @@ export async function startUpload(input: {
 
 /** Step 2: confirm the bytes really arrived in R2, then record the real size. */
 export async function finishUpload(fileId: string): Promise<{ ok: boolean; error?: string }> {
-  await requireUserId()
+  const userId = await requireUserId()
   const supabase = await createClient()
   const { data: row } = await supabase.from('files').select('id, r2_key').eq('id', fileId).maybeSingle()
   if (!row?.r2_key) return { ok: false, error: 'File not found.' }
@@ -97,6 +100,11 @@ export async function finishUpload(fileId: string): Promise<{ ok: boolean; error
     .update({ size_bytes: head.size, sort_status: 'pending' })
     .eq('id', fileId)
   if (error) return { ok: false, error: error.message }
+
+  // Read, summarise and file it after the response, so the upload feels instant.
+  after(async () => {
+    await sortFile(createAdminClient(), userId, fileId)
+  })
 
   revalidatePath('/files')
   revalidatePath('/assignments')

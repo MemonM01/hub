@@ -1,6 +1,8 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { after } from 'next/server'
 import { headObject } from '@/lib/r2'
+import { sortFile } from '@/lib/sorter'
 
 /** Record the real size once the bytes are in R2. Only then does the row count as a file. */
 export async function confirmBytes(admin: SupabaseClient, userId: string, fileId: string) {
@@ -19,5 +21,9 @@ export async function confirmBytes(admin: SupabaseClient, userId: string, fileId
     .update({ size_bytes: head.size, sort_status: 'pending' })
     .eq('id', fileId)
     .eq('user_id', userId)
-  return error ? { ok: false, error: error.message } : { ok: true }
+  if (error) return { ok: false, error: error.message }
+  after(async () => {
+    await sortFile(admin, userId, fileId)
+  })
+  return { ok: true }
 }

@@ -9,6 +9,8 @@ import { backLabel, safeFrom } from '@/lib/back'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { Uploader } from '@/components/uploader'
 import { DeleteFileButton } from '@/components/delete-file-button'
+import { FilingForm } from '@/components/sort-controls'
+import { getModules } from '@/lib/data'
 
 export const instant = false
 
@@ -25,6 +27,9 @@ type FileDetail = {
   summary: string | null
   pinned: boolean
   created_at: string
+  module_id: string | null
+  sort_status: string
+  sort_confidence: number | null
   modules: { code: string } | null
   assignments: { sheet: string } | null
 }
@@ -37,7 +42,7 @@ export default async function FilePage({ params, searchParams }: PageProps<'/fil
   const { data } = await supabase
     .from('files')
     .select(
-      'id, filename, title, mime_type, size_bytes, r2_key, kind, week, source, summary, pinned, created_at, modules(code), assignments(sheet)',
+      'id, filename, title, mime_type, size_bytes, r2_key, kind, week, source, summary, pinned, created_at, module_id, sort_status, sort_confidence, modules(code), assignments(sheet)',
     )
     .eq('id', id)
     .maybeSingle()
@@ -81,7 +86,21 @@ export default async function FilePage({ params, searchParams }: PageProps<'/fil
               <DeleteFileButton fileId={file.id} back={back} />
             </span>
           </div>
-          {file.summary ? <p className="text-sm">{file.summary}</p> : null}
+          {file.summary ? <p className="max-w-prose text-sm">{file.summary}</p> : null}
+          {file.sort_status !== 'sorted' ? (
+            <p className="text-xs text-muted">
+              {file.sort_status === 'pending'
+                ? 'Waiting for the sorter.'
+                : file.sort_status === 'failed'
+                  ? 'The sorter could not read this file.'
+                  : `The sorter was not sure (${Math.round((file.sort_confidence ?? 0) * 100)}%), so it left this for you.`}
+            </p>
+          ) : null}
+          <FilingForm
+            fileId={file.id}
+            modules={await getModules()}
+            current={{ moduleId: file.module_id, week: file.week, kind: file.kind, sheet: file.assignments?.sheet ?? null }}
+          />
           <Preview id={file.id} r2Key={file.r2_key!} kind={kind} />
         </>
       ) : (

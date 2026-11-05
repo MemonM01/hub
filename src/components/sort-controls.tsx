@@ -1,0 +1,134 @@
+'use client'
+
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { fileManually, resortFile, sortSome } from '@/lib/actions/sorting'
+import type { Module } from '@/lib/types'
+
+const KIND_LABEL: Record<string, string> = {
+  lecture_slides: 'Lecture slides',
+  lecture_notes: 'Lecture notes',
+  coursework: 'Coursework',
+  worksheet: 'Worksheet',
+  submission_template: 'Submission template',
+  lab_sheet: 'Lab sheet',
+  solution: 'Solution',
+  quiz: 'Quiz',
+  reading: 'Reading',
+  other: 'Other',
+}
+export { KIND_LABEL }
+
+export function SortBacklog({ waiting }: { waiting: number }) {
+  const router = useRouter()
+  const [left, setLeft] = useState(waiting)
+  const [running, setRunning] = useState(false)
+  if (!waiting && !running) return null
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-line px-4 py-3 text-sm">
+      <span>{running ? `Sorting… ${left} left` : `${waiting} file(s) waiting for the sorter.`}</span>
+      {!running ? (
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={async () => {
+            setRunning(true)
+            let n = waiting
+            while (n > 0) {
+              const res = await sortSome()
+              n = res.left
+              setLeft(n)
+              router.refresh()
+              if (!res.done) break
+            }
+            setRunning(false)
+          }}
+        >
+          Sort them now
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
+export function FilingForm({
+  fileId,
+  modules,
+  current,
+}: {
+  fileId: string
+  modules: Module[]
+  current: { moduleId: string | null; week: number | null; kind: string | null; sheet: string | null }
+}) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
+  const [error, setError] = useState<string>()
+  const [saved, setSaved] = useState(false)
+  return (
+    <form
+      className="flex flex-wrap items-end gap-2 rounded-lg border border-line p-3"
+      action={(fd) =>
+        start(async () => {
+          const week = Number(fd.get('week'))
+          const res = await fileManually(fileId, {
+            moduleId: String(fd.get('module') || '') || null,
+            week: Number.isInteger(week) && week > 0 ? week : null,
+            kind: String(fd.get('kind') || '') || null,
+            sheet: String(fd.get('sheet') || '').trim() || null,
+          })
+          if (res.error) setError(res.error)
+          else {
+            setError(undefined)
+            setSaved(true)
+            router.refresh()
+          }
+        })
+      }
+    >
+      <label className="block">
+        <span className="text-xs text-muted">Module</span>
+        <select name="module" defaultValue={current.moduleId ?? ''} className="field mt-1 w-32 py-1.5 text-sm">
+          <option value="">None</option>
+          {modules.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.code}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="block">
+        <span className="text-xs text-muted">Kind</span>
+        <select name="kind" defaultValue={current.kind ?? ''} className="field mt-1 w-44 py-1.5 text-sm">
+          <option value="">Unknown</option>
+          {Object.entries(KIND_LABEL).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="block">
+        <span className="text-xs text-muted">Week</span>
+        <input name="week" type="number" min={1} max={30} defaultValue={current.week ?? ''} className="field mt-1 w-20 py-1.5 text-sm" />
+      </label>
+      <label className="block">
+        <span className="text-xs text-muted">Sheet</span>
+        <input name="sheet" placeholder="1.2" defaultValue={current.sheet ?? ''} className="field mt-1 w-20 py-1.5 text-sm" />
+      </label>
+      <button type="submit" disabled={pending} className="btn-primary">
+        {pending ? 'Saving…' : 'File it'}
+      </button>
+      <button
+        type="button"
+        disabled={pending}
+        className="rounded-md border border-line px-3 py-1.5 text-sm text-muted hover:text-ink"
+        onClick={() => start(async () => { await resortFile(fileId); router.refresh() })}
+      >
+        Run sorter again
+      </button>
+      <p className="w-full text-xs text-muted">
+        {error ? <span className="text-danger">{error}</span> : saved ? 'Filed. The sorter will not move it again.' : 'Filing by hand pins it, so the sorter never moves it.'}
+      </p>
+    </form>
+  )
+}

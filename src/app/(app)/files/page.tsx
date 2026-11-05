@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getModules } from '@/lib/data'
 import { formatBytes, formatDate } from '@/lib/format'
 import { Uploader } from '@/components/uploader'
+import { SortBacklog, KIND_LABEL } from '@/components/sort-controls'
 
 export const instant = false
 export const metadata: Metadata = { title: 'Files' }
@@ -18,20 +19,26 @@ type Row = {
   size_bytes: number
   sort_status: string
   created_at: string
+  week: number | null
+  summary: string | null
 }
 
 const BACK = encodeURIComponent('/files')
 
-export default async function FilesPage() {
+export default async function FilesPage({ searchParams }: PageProps<'/files'>) {
   await requireUserId()
+  const sp = await searchParams
+  const q = (Array.isArray(sp.q) ? sp.q[0] : sp.q)?.trim().slice(0, 200) ?? ''
   const supabase = await createClient()
+  let filesQuery = supabase
+    .from('files')
+    .select('id, filename, title, kind, module_id, size_bytes, sort_status, created_at, week, summary')
+    .not('size_bytes', 'is', null) // a saved name with no bytes is not a file
+  // Search covers title, filename, summary and extracted text.
+  if (q) filesQuery = filesQuery.textSearch('search', q, { type: 'websearch', config: 'english' })
   const [modules, res, namesRes] = await Promise.all([
     getModules({ includeArchived: true }),
-    supabase
-      .from('files')
-      .select('id, filename, title, kind, module_id, size_bytes, sort_status, created_at')
-      .not('size_bytes', 'is', null) // a saved name with no bytes is not a file
-      .order('created_at', { ascending: false }),
+    filesQuery.order('created_at', { ascending: false }).limit(1000),
     // Minerva often saves a name before the bytes exist. Those are not files, so they get their own list.
     supabase
       .from('files')
@@ -49,7 +56,23 @@ export default async function FilesPage() {
   return (
     <section className="space-y-8">
       <h1 className="text-2xl font-semibold tracking-tight">Files</h1>
-      <Uploader />
+      <form className="flex gap-2" action="/files">
+        <input name="q" defaultValue={q} placeholder="Search names, summaries and text inside files" className="field" type="search" />
+        <button className="rounded-md border border-line px-3 text-sm">Search</button>
+      </form>
+      {q ? (
+        <p className="text-sm text-muted">
+          {files.length} result(s) for “{q}”.{' '}
+          <Link href="/files" prefetch={false} className="underline">
+            Clear
+          </Link>
+        </p>
+      ) : (
+        <>
+          <Uploader />
+          <SortBacklog waiting={files.filter((f) => f.sort_status === 'pending').length} />
+        </>
+      )}
 
       <div>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">
@@ -67,7 +90,14 @@ export default async function FilesPage() {
           Sorted <span className="tabular-nums">({sorted.length})</span>
         </h2>
         {sorted.length ? (
-          <FileTable rows={sorted} codeOf={codeOf} />
+          <div className="space-y-4">
+            {[...new Set(sorted.map((f) => f.module_id))].map((mid) => (
+              <div key={mid ?? 'none'}>
+                <h3 className="mb-1.5 font-mono text-sm">{mid ? codeOf.get(mid) : 'No module'}</h3>
+                <FileTable rows={sorted.filter((f) => f.module_id === mid)} codeOf={codeOf} />
+              </div>
+            ))}
+          </div>
         ) : (
           <p className="text-sm text-muted">Sorted files appear here once the sorter runs (step 6).</p>
         )}
@@ -107,6 +137,9 @@ function FileTable({ rows, codeOf }: { rows: Row[]; codeOf: Map<string, string> 
           <Link href={`/files/${f.id}?from=${BACK}`} prefetch={false} className="min-w-0 flex-1 truncate hover:underline">
             {f.title ?? f.filename}
           </Link>
+          {f.kind ? <span className="hidden text-xs text-muted md:inline">{KIND_LABEL[f.kind] ?? f.kind}</span> : null}
+          {f.week ? <span className="hidden text-xs text-muted sm:inline">Wk {f.week}</span> : null}
+          {f.sort_status === 'failed' ? <span className="text-xs text-danger">Could not read</span> : null}
           <span className="hidden text-xs text-muted sm:inline">{formatBytes(f.size_bytes)}</span>
           <span className="text-xs text-muted">{formatDate(f.created_at)}</span>
         </li>
