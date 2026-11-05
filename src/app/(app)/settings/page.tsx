@@ -46,6 +46,24 @@ export default async function SettingsPage() {
       </div>
 
       <div className="space-y-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">hub extension (Chrome)</h2>
+        <p className="max-w-prose text-sm text-muted">
+          Minerva serves files from a separate server that a bookmarklet is not allowed to read. The extension can, so it
+          copies the files too. Install it once:
+        </p>
+        <ol className="max-w-prose list-decimal space-y-1 pl-5 text-sm">
+          <li>
+            In Chrome, open <code className="font-mono text-xs">chrome://extensions</code> and turn on Developer mode.
+          </li>
+          <li>
+            Click Load unpacked and choose the <code className="font-mono text-xs">extension</code> folder inside Betterva.
+          </li>
+          <li>Pin hub sync, click it, and paste the hub address ({origin}) and a sync token from above.</li>
+          <li>Log in to Minerva in Chrome, then click hub sync and Sync Minerva now.</li>
+        </ol>
+      </div>
+
+      <div className="space-y-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Sync tokens</h2>
         {active.length ? (
           <ul className="divide-y divide-line rounded-lg border border-line">

@@ -78,6 +78,23 @@ export function BookmarkletInstaller({ origin }: { origin: string }) {
           Vercel.
         </p>
       ) : null}
+      <div className="space-y-1 rounded-md bg-line/50 p-3">
+        <p className="text-sm font-medium">For the hub extension (Minerva files)</p>
+        <p className="text-xs text-muted">Paste this token into the extension once. It is shown only now.</p>
+        <div className="flex items-center gap-2">
+          <code className="min-w-0 flex-1 truncate rounded bg-paper px-2 py-1 font-mono text-xs">{token}</code>
+          <button
+            type="button"
+            className="text-xs text-muted underline"
+            onClick={async () => {
+              await navigator.clipboard.writeText(token)
+              setCopied('token')
+            }}
+          >
+            {copied === 'token' ? 'Copied' : 'Copy token'}
+          </button>
+        </div>
+      </div>
       <ul className="space-y-3">
         {BOOKMARKLETS.map((b) => {
           const code = bookmarkletCode(origin, token, b.id)
