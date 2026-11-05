@@ -50,19 +50,38 @@
     this.message = 'Panopto returned a login page. Log in to Panopto in this tab, then click again.'
   }
 
-  // Never treat an HTML login page as JSON.
-  function readJson(res) {
-    return res.text().then(function (text) {
-      var type = res.headers.get('content-type') || ''
-      var t = text.trim()
-      if (t.charAt(0) === '<' || /text\/html/i.test(type)) throw new LoginError()
-      if (!res.ok) {
-        var err = new Error('Panopto ' + res.status)
-        err.status = res.status
-        throw err
-      }
-      return t ? JSON.parse(t) : null
-    })
+  // Never treat an HTML page as JSON. Only a real redirect to Panopto's sign-in page counts as
+  // "logged out"; any other HTML (an error page, a 404) just means this call did not work.
+  function looksLikeLogin(res, text) {
+    if (res.redirected && /login|signin|auth/i.test(res.url)) return true
+    return /<form[^>]+(login|signin)/i.test(text) || /id=["']?(loginControl|PageContentPlaceholder_loginControl)/i.test(text)
+  }
+
+  function readJson(path) {
+    return function (res) {
+      return res.text().then(function (text) {
+        var type = res.headers.get('content-type') || ''
+        var t = text.trim()
+        if (t.charAt(0) === '<' || /text\/html/i.test(type)) {
+          if (looksLikeLogin(res, t)) throw new LoginError()
+          var html = new Error('HTML from ' + path.split('?')[0] + ' (' + res.status + ')')
+          html.status = res.status + ' html'
+          throw html
+        }
+        if (!res.ok) {
+          var err = new Error('Panopto ' + res.status + ' from ' + path.split('?')[0])
+          err.status = res.status
+          throw err
+        }
+        try {
+          return t ? JSON.parse(t) : null
+        } catch (_) {
+          var bad = new Error('Not JSON from ' + path.split('?')[0])
+          bad.status = 'not json'
+          throw bad
+        }
+      })
+    }
   }
 
   function pPost(path, body) {
@@ -71,11 +90,11 @@
       credentials: 'include',
       headers: { 'content-type': 'application/json; charset=utf-8', accept: 'application/json' },
       body: JSON.stringify(body),
-    }).then(readJson)
+    }).then(readJson(path))
   }
 
   function pGet(path) {
-    return fetch(BASE + path, { credentials: 'include', headers: { accept: 'application/json' } }).then(readJson)
+    return fetch(BASE + path, { credentials: 'include', headers: { accept: 'application/json' } }).then(readJson(path))
   }
 
   function hub(path, body) {
@@ -270,6 +289,7 @@
       })
       .catch(function (e) {
         if (e instanceof LoginError) throw e
+        log('Sessions for ' + folder.name + ' failed: ' + e.message, 'dim')
         return []
       })
       .then(function (list) {
@@ -288,6 +308,7 @@
           })
           .catch(function (e) {
             if (e instanceof LoginError) throw e
+            log('Search for ' + codeGuess + ' failed: ' + e.message, 'dim')
             return []
           })
       })
