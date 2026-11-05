@@ -9,6 +9,7 @@ const MAX_DOWNLOADS = 300
 
 // ---------- progress, shown in the popup ----------
 let status = { running: false, lines: [] }
+// reset per run below
 function save() {
   return chrome.storage.session.set({ status })
 }
@@ -133,12 +134,38 @@ async function walk(course, complete) {
   return files
 }
 
+function where(u) {
+  try {
+    const x = new URL(u)
+    return x.host + x.pathname.slice(0, 60)
+  } catch {
+    return String(u).slice(0, 80)
+  }
+}
+
+let shownDetail = 0
 async function getBytes(url) {
-  const res = await fetch(url, { credentials: 'include' })
-  if (!res.ok) throw new Error('download ' + res.status + (res.url !== url ? ' via ' + new URL(res.url).host : ''))
+  let res
+  try {
+    res = await fetch(url, { credentials: 'include' })
+  } catch (e) {
+    throw new Error('download blocked: ' + (e && e.message))
+  }
+  if (!res.ok) {
+    const body = (await res.text()).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+    if (shownDetail++ < 2) log('Detail: ' + res.status + ' at ' + where(res.url) + ' :: ' + body.slice(0, 160), 'dim')
+    throw new Error('download ' + res.status + ' via ' + new URL(res.url).host)
+  }
   const blob = await res.blob()
-  const head = (await blob.slice(0, 200).text()).trimStart().toLowerCase()
+  const text = await blob.slice(0, 3000).text()
+  const head = text.trimStart().toLowerCase()
   if (head.startsWith('<!doctype html') || head.startsWith('<html')) {
+    if (shownDetail++ < 4) {
+      const action = (/<form[^>]*action=["']([^"']+)/i.exec(text) || [])[1]
+      const loc = (/location(?:\.href)?\s*=\s*["']([^"']+)/i.exec(text) || [])[1]
+      log('Detail: web page at ' + where(res.url) + (action ? ' form→' + where(action) : '') + (loc ? ' js→' + where(loc) : '') +
+        ' :: ' + text.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140), 'dim')
+    }
     if (/login|sso|auth/i.test(res.url)) throw new LoginError()
     throw new Error('got a web page, not the file')
   }
@@ -170,7 +197,12 @@ async function hub(cfg, path, body) {
 
 // Straight to R2 with the signed PUT (the extension is allowed to), then hub checks the bytes.
 async function store(cfg, need, blob) {
-  const res = await fetch(need.putUrl, { method: 'PUT', headers: { 'content-type': need.contentType }, body: blob })
+  let res
+  try {
+    res = await fetch(need.putUrl, { method: 'PUT', headers: { 'content-type': need.contentType }, body: blob })
+  } catch (e) {
+    throw new Error('upload to storage blocked: ' + (e && e.message))
+  }
   if (!res.ok) throw new Error('storage ' + res.status)
   await hub(cfg, '/api/sync/minerva/done', { fileId: need.fileId })
 }
@@ -194,6 +226,7 @@ async function pool(items, n, fn) {
 async function syncMinerva() {
   if (status.running) return
   status = { running: true, lines: [] }
+  shownDetail = 0
   save()
   const cfg = await chrome.storage.local.get(['origin', 'token'])
   const totals = { stored: 0, failed: 0, skipped: 0 }

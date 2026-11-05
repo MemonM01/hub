@@ -1,15 +1,30 @@
 {
   "manifest_version": 3,
   "name": "hub sync",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Copies my Minerva files into my own hub dashboard, using my own logged-in browser.",
-  "action": { "default_popup": "popup.html", "default_title": "hub sync", "default_icon": { "128": "icon128.png" } },
-  "icons": { "128": "icon128.png" },
-  "background": { "service_worker": "background.js" },
-  "permissions": ["storage"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "hub sync",
+    "default_icon": {
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "128": "icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "storage"
+  ],
   "host_permissions": [
     "https://minerva.leeds.ac.uk/*",
     "https://*.leeds.ac.uk/*",
+    "https://*.blackboard.com/*",
+    "https://*.blackboardcdn.com/*",
+    "https://*.amazonaws.com/*",
     "https://*.r2.cloudflarestorage.com/*",
     "https://hub-memonm01s-projects.vercel.app/*",
     "http://localhost:3000/*"
