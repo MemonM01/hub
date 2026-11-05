@@ -152,8 +152,19 @@ async function hub(cfg, path, body) {
     headers: { authorization: 'Bearer ' + cfg.token, 'content-type': 'application/json' },
     body: JSON.stringify(body || {}),
   })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.error || 'hub ' + res.status)
+  const text = await res.text()
+  let data = {}
+  try {
+    data = text ? JSON.parse(text) : {}
+  } catch {
+    // not JSON
+  }
+  if (!res.ok) {
+    const err = data.error
+    const detail =
+      typeof err === 'string' ? err : err ? err.message || err.code || JSON.stringify(err) : text.replace(/<[^>]*>/g, ' ').trim().slice(0, 160)
+    throw new Error('hub ' + res.status + ' at ' + path + ': ' + (detail || 'no details'))
+  }
   return data
 }
 
@@ -242,7 +253,7 @@ async function syncMinerva() {
       'good',
     )
   } catch (e) {
-    log(e.message || String(e), 'bad')
+    log((e && e.message) || JSON.stringify(e), 'bad')
   } finally {
     status.running = false
     save()
