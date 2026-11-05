@@ -131,10 +131,20 @@
     return null
   }
 
+  // Panopto search results wrap matches in <span class="match">. Keep plain text only.
+  var decoder = document.createElement('textarea')
+  function plain(v) {
+    if (v == null) return null
+    decoder.innerHTML = String(v).replace(/<[^>]*>/g, '')
+    var t = decoder.value.replace(/\s+/g, ' ').trim()
+    return t || null
+  }
+
   function toFolder(o) {
     var id = pick(o, ['ID', 'Id', 'id', 'Key', 'FolderID', 'FolderId'])
     var name = pick(o, ['Name', 'name', 'FolderName', 'DisplayName', 'Value'])
-    return id && GUID.test(String(id)) && name ? { id: String(id), name: String(name) } : null
+    name = plain(name)
+    return id && GUID.test(String(id)) && name ? { id: String(id), name: name } : null
   }
 
   function msDate(v) {
@@ -260,7 +270,7 @@
 
   function toSession(o, folder) {
     var id = pick(o, ['DeliveryID', 'DeliveryId', 'SessionID', 'SessionId', 'Id', 'ID'])
-    var title = pick(o, ['SessionName', 'Name', 'name', 'Title'])
+    var title = plain(pick(o, ['SessionName', 'Name', 'name', 'Title']))
     if (!id || !GUID.test(String(id)) || !title) return null
     var pct = pick(o, ['PercentCompleted', 'PercentWatched', 'ViewProgress', 'CompletionPercentage'])
     pct = pct == null ? null : Number(pct)
@@ -269,9 +279,9 @@
     var dur = Number(pick(o, ['Duration', 'duration', 'SessionDuration']))
     return {
       id: String(id),
-      title: String(title),
+      title: title,
       folderId: String(pick(o, ['FolderID', 'FolderId']) || (folder && folder.id) || '') || null,
-      folderName: String(pick(o, ['FolderName']) || (folder && folder.name) || '') || null,
+      folderName: plain(pick(o, ['FolderName'])) || (folder && folder.name) || null,
       durationSeconds: isFinite(dur) && dur > 0 ? dur : null,
       deliveredAt: msDate(pick(o, ['StartTime', 'StartTimeUtc', 'DateTime', 'CreatedDate'])),
       viewerUrl: absUrl(pick(o, ['ViewerUrl', 'ViewerURL', 'EmbedUrl'])) || location.origin + '/Panopto/Pages/Viewer.aspx?id=' + id,
@@ -368,8 +378,39 @@
 
   function codeIn(name, codes) {
     var up = String(name).toUpperCase().replace(/\s+/g, '')
-    for (var i = 0; i < codes.length; i++) if (up.indexOf(codes[i]) > -1) return codes[i]
+    for (var i = 0; i < codes.length; i++) if (new RegExp(codes[i] + '(?!\\d)').test(up)) return codes[i]
     return null
+  }
+
+  // Search sessions by module code and collect the folders whose name really has that code.
+  // Search matches loosely (COMP2850 also finds COMP1860), so the exact code check matters.
+  function discoverFolders(codes, archived) {
+    var found = []
+    return codes
+      .reduce(function (p, code) {
+        return p.then(function () {
+          return pPost('/Services/Data.svc/GetSessions', sessionQuery({ query: code }))
+            .then(function (d) {
+              var n = 0
+              listIn(d).forEach(function (o) {
+                var s = toSession(o, null)
+                if (!s || !s.folderId || archived[s.folderId] || codeIn(s.folderName || '', [code]) !== code) return
+                if (!found.some(function (f) { return f.id === s.folderId })) {
+                  found.push({ id: s.folderId, name: s.folderName })
+                  n++
+                }
+              })
+              log('Search ' + code + ': ' + n + ' folder(s)', 'dim')
+            })
+            .catch(function (e) {
+              if (e instanceof LoginError) throw e
+              log('Search ' + code + ' failed: ' + e.message, 'dim')
+            })
+        })
+      }, Promise.resolve())
+      .then(function () {
+        return found
+      })
   }
 
   // ---------- run ----------
@@ -417,26 +458,25 @@
             if (!f.archived && f.moduleCode && !targets.some(function (t) { return t.id === f.id }))
               targets.push({ id: f.id, name: f.name })
           })
-          if (!targets.length) {
-            log('No folders match ' + codes.join(', ') + '. Running a session search instead.', 'dim')
-            targets = codes.map(function (c) {
-              return { id: null, name: c, searchOnly: c }
+          // Codes with no folder yet: find their folders through a session search.
+          var missing = codes.filter(function (c) {
+            return !targets.some(function (t) {
+              return codeIn(t.name, [c])
             })
-          }
+          })
+          return discoverFolders(missing, archived).then(function (extra) {
+            extra.forEach(function (f) {
+              if (!targets.some(function (t) { return t.id === f.id })) targets.push(f)
+            })
+            if (!targets.length) throw new Error('Could not find a Panopto folder for ' + codes.join(', ') + '.')
+            return runTargets(targets)
+          })
 
+          function runTargets(targets) {
           return targets.reduce(function (p, folder) {
             return p.then(function () {
-              var guess = (knownIds[folder.id] && knownIds[folder.id].moduleCode) || codeIn(folder.name, codes) || folder.searchOnly
-              var get = folder.id
-                ? sessionsFor(folder, guess)
-                : pPost('/Services/Data.svc/GetSessions', sessionQuery({ query: folder.searchOnly })).then(function (d) {
-                    return listIn(d)
-                      .map(function (o) {
-                        return toSession(o, null)
-                      })
-                      .filter(Boolean)
-                  })
-              return get.then(function (sessions) {
+              var guess = (knownIds[folder.id] && knownIds[folder.id].moduleCode) || codeIn(folder.name, codes)
+              return sessionsFor(folder, guess).then(function (sessions) {
                 sessions = sessions.filter(function (s) {
                   return !s.folderId || !archived[s.folderId]
                 })
@@ -457,6 +497,7 @@
               })
             })
           }, Promise.resolve())
+          }
         })
     })
     .then(function () {

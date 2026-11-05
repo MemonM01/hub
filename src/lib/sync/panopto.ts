@@ -34,10 +34,25 @@ function str(value: unknown, max: number): string | null {
   return typeof value === 'string' && value.trim() ? value.trim().slice(0, max) : null
 }
 
+/** Panopto search highlights matches with HTML. Store plain text only. */
+function text(value: unknown, max: number): string | null {
+  if (typeof value !== 'string') return null
+  const t = value
+    .replace(/<[^>]*>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+  return t ? t.slice(0, max) : null
+}
+
 export function cleanFolders(input: unknown): InFolder[] {
   if (!Array.isArray(input)) return []
   return input
-    .map((f) => ({ id: str(f?.id, 64), name: str(f?.name, 300) }))
+    .map((f) => ({ id: str(f?.id, 64), name: text(f?.name, 300) }))
     .filter((f): f is InFolder => !!f.id && GUID.test(f.id) && !!f.name)
     .slice(0, 2000)
 }
@@ -47,7 +62,7 @@ export function cleanSessions(input: unknown): InSession[] {
   const out: InSession[] = []
   for (const s of input.slice(0, 500)) {
     const id = str(s?.id, 64)
-    const title = str(s?.title, 500)
+    const title = text(s?.title, 500)
     if (!id || !GUID.test(id) || !title) continue
     const folderId = str(s?.folderId, 64)
     const delivered = str(s?.deliveredAt, 40)
@@ -56,7 +71,7 @@ export function cleanSessions(input: unknown): InSession[] {
       id,
       title,
       folderId: folderId && GUID.test(folderId) ? folderId : null,
-      folderName: str(s?.folderName, 300),
+      folderName: text(s?.folderName, 300),
       durationSeconds: typeof s?.durationSeconds === 'number' && isFinite(s.durationSeconds) ? Math.round(s.durationSeconds) : null,
       deliveredAt: delivered && !isNaN(Date.parse(delivered)) ? new Date(delivered).toISOString() : null,
       viewerUrl: panoptoUrl(s?.viewerUrl),
