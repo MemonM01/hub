@@ -5,6 +5,7 @@ import { getModuleBundle } from '@/lib/module-data'
 import { FOLDERS, STATUS_LABEL, type FileRow, type FolderKey } from '@/lib/types'
 import { compareSheets } from '@/lib/sheets'
 import { formatBytes, formatDate } from '@/lib/format'
+import { compareFiles, groupOf } from '@/lib/order'
 
 export const instant = false
 
@@ -17,10 +18,11 @@ export default async function FolderPage({ params }: PageProps<'/modules/[code]/
   const here = `/modules/${mod.code}/${key}`
 
   const kinds = FOLDERS[key].kinds as readonly string[]
-  const inFolder =
+  const inFolder = (
     key === 'other'
       ? files.filter((f) => !f.kind || kinds.includes(f.kind))
       : files.filter((f) => kinds.includes(f.kind ?? ''))
+  ).sort(compareFiles)
 
   return (
     <section className="space-y-4">
@@ -69,6 +71,8 @@ export default async function FolderPage({ params }: PageProps<'/modules/[code]/
         </>
       ) : key === 'topics' ? (
         <TopicList files={files} back={here} />
+      ) : key === 'worksheets' && inFolder.length ? (
+        <GroupedList files={inFolder} back={here} />
       ) : inFolder.length ? (
         <FileList files={inFolder} back={here} />
       ) : (
@@ -98,6 +102,26 @@ function FileList({ files, back }: { files: FileRow[]; back: string }) {
   )
 }
 
+function GroupedList({ files, back }: { files: (FileRow & { week: number | null })[]; back: string }) {
+  const groups: { key: string; label: string; files: typeof files }[] = []
+  for (const f of files) {
+    const g = groupOf(f) ?? { key: 'other', label: 'Other' }
+    const last = groups.find((x) => x.key === g.key)
+    if (last) last.files.push(f)
+    else groups.push({ key: g.key, label: g.label, files: [f] })
+  }
+  return (
+    <div className="space-y-4">
+      {groups.map((g) => (
+        <div key={g.key}>
+          <h2 className="mb-1.5 text-sm font-medium">{g.label}</h2>
+          <FileList files={g.files} back={back} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function TopicList({ files, back }: { files: (FileRow & { week: number | null })[]; back: string }) {
   const weeks = [...new Set(files.map((f) => f.week).filter((w): w is number => w != null))].sort((a, b) => a - b)
   if (!weeks.length) return <Empty text="Topics appear here once files are sorted by week (step 6)." />
@@ -106,7 +130,7 @@ function TopicList({ files, back }: { files: (FileRow & { week: number | null })
       {weeks.map((w) => (
         <div key={w}>
           <h2 className="mb-1.5 text-sm font-medium">Week {w}</h2>
-          <FileList files={files.filter((f) => f.week === w)} back={back} />
+          <FileList files={files.filter((f) => f.week === w).sort(compareFiles)} back={back} />
         </div>
       ))}
     </div>

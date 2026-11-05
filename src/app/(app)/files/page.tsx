@@ -7,6 +7,7 @@ import { formatBytes, formatDate } from '@/lib/format'
 import { Uploader } from '@/components/uploader'
 import { SortBacklog } from '@/components/sort-controls'
 import { KIND_LABEL } from '@/lib/types'
+import { compareFiles } from '@/lib/order'
 
 export const instant = false
 export const metadata: Metadata = { title: 'Files' }
@@ -95,7 +96,7 @@ export default async function FilesPage({ searchParams }: PageProps<'/files'>) {
             {[...new Set(sorted.map((f) => f.module_id))].map((mid) => (
               <div key={mid ?? 'none'}>
                 <h3 className="mb-1.5 font-mono text-sm">{mid ? codeOf.get(mid) : 'No module'}</h3>
-                <FileTable rows={sorted.filter((f) => f.module_id === mid)} codeOf={codeOf} />
+                <FileTable rows={sorted.filter((f) => f.module_id === mid).sort(compareFiles)} codeOf={codeOf} />
               </div>
             ))}
           </div>

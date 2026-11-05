@@ -48,5 +48,6 @@ export function compareSheets(a: string, b: string): number {
 }
 
 function stripExtension(filename: string) {
-  return filename.replace(/\.[A-Za-z0-9]{1,5}$/, '')
+  // Only a real extension (has a letter): 'Worksheet 1.5' keeps its .5
+  return filename.replace(/\.(?=[A-Za-z0-9]*[A-Za-z])[A-Za-z0-9]{1,5}$/, '')
 }

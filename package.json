@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx scripts/test-sheets.ts"
+    "test": "tsx scripts/test-sheets.ts && tsx scripts/test-order.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1161.0",

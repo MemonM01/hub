@@ -130,9 +130,10 @@ export async function sortFile(db: SupabaseClient, userId: string, fileId: strin
     }
 
     // Filename rules are reliable for these, so they win over the model.
-    const nameCode = parseModuleCode(file.filename)
-    const nameKind = guessKind(file.filename)
-    const nameSheet = parseSheet(file.filename)
+    // Minerva titles ("Worksheet 1.4 Solutions (html)") often say more than the filename does.
+    const nameCode = parseModuleCode(file.filename) ?? (file.title ? parseModuleCode(file.title) : null)
+    const nameKind = guessKind(file.filename) ?? (file.title ? guessKind(file.title) : null)
+    const nameSheet = parseSheet(file.filename) ?? (file.title ? parseSheet(file.title) : null)
 
     const knownModule = file.module_id ? codeOf.get(file.module_id) : null // Minerva course or set by hand
     const modelCode = verdict?.moduleCode && byCode.has(verdict.moduleCode) ? verdict.moduleCode : null
