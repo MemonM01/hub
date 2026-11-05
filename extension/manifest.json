@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "hub sync",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Copies my Minerva files into my own hub dashboard, using my own logged-in browser.",
   "action": {
     "default_popup": "popup.html",

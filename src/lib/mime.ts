@@ -18,6 +18,7 @@ const BY_EXT: Record<string, string> = {
   js: 'text/javascript',
   ts: 'text/typescript',
   html: 'text/html',
+  htm: 'text/html',
   sql: 'text/x-sql',
   tex: 'text/x-tex',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -35,7 +36,7 @@ export function mimeFor(filename: string, given?: string | null) {
   return BY_EXT[extOf(filename)] ?? 'application/octet-stream'
 }
 
-export type PreviewKind = 'pdf' | 'image' | 'text' | 'docx' | 'pptx' | 'none'
+export type PreviewKind = 'pdf' | 'image' | 'text' | 'html' | 'docx' | 'pptx' | 'none'
 
 export function previewKind(filename: string, mime: string | null): PreviewKind {
   const ext = extOf(filename)
@@ -43,9 +44,10 @@ export function previewKind(filename: string, mime: string | null): PreviewKind 
   if (m === 'application/pdf' || ext === 'pdf') return 'pdf'
   if (ext === 'svg') return 'text' // never render uploaded SVG inline
   if (m.startsWith('image/')) return 'image'
+  if (ext === 'html' || ext === 'htm' || m === 'text/html') return 'html'
   if (ext === 'docx') return 'docx'
   if (ext === 'pptx') return 'pptx'
-  if (m.startsWith('text/') || ['json', 'md', 'csv', 'py', 'java', 'c', 'h', 'cpp', 'js', 'ts', 'sql', 'tex', 'txt', 'html'].includes(ext))
+  if (m.startsWith('text/') || ['json', 'md', 'csv', 'py', 'java', 'c', 'h', 'cpp', 'js', 'ts', 'sql', 'tex', 'txt'].includes(ext))
     return 'text'
   return 'none'
 }

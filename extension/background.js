@@ -144,7 +144,8 @@ function where(u) {
 }
 
 let shownDetail = 0
-async function getBytes(url) {
+async function getBytes(url, filename) {
+  const isHtmlFile = /\.(x?html?|php)$/i.test(filename || '')
   let res
   try {
     res = await fetch(url, { credentials: 'include' })
@@ -160,6 +161,8 @@ async function getBytes(url) {
   const text = await blob.slice(0, 3000).text()
   const head = text.trimStart().toLowerCase()
   if (head.startsWith('<!doctype html') || head.startsWith('<html')) {
+    // Some worksheets really are HTML pages. Keep those; only a login or a wrong page is refused.
+    if (isHtmlFile && !/login|sso|auth/i.test(res.url) && !/<form[^>]+(login|signin)/i.test(text)) return blob
     if (shownDetail++ < 4) {
       const action = (/<form[^>]*action=["']([^"']+)/i.exec(text) || [])[1]
       const loc = (/location(?:\.href)?\s*=\s*["']([^"']+)/i.exec(text) || [])[1]
@@ -272,7 +275,7 @@ async function syncMinerva() {
           const f = byExt[need.externalId]
           if (!f) return
           try {
-            await store(cfg, need, await getBytes(f.download))
+            await store(cfg, need, await getBytes(f.download, f.filename))
             totals.stored++
           } catch (e) {
             fail(e)

@@ -137,6 +137,17 @@ async function Preview({ id, r2Key, kind }: { id: string; r2Key: string; kind: P
       </div>
     )
   }
+  if (data.type === 'html') {
+    // Rendered with scripts, forms and network access all off: it can only show text and styles.
+    return (
+      <iframe
+        title="Page preview"
+        sandbox=""
+        srcDoc={data.html}
+        className="h-[80dvh] w-full rounded-lg border border-line bg-white"
+      />
+    )
+  }
   if (data.type === 'docx') {
     return (
       <div
@@ -173,6 +184,7 @@ type Loaded =
   | { type: 'error'; message: string }
   | { type: 'text'; text: string; truncated: boolean }
   | { type: 'docx'; html: string }
+  | { type: 'html'; html: string }
   | { type: 'pptx'; slides: Slide[] }
 
 async function loadPreview(r2Key: string, kind: PreviewKind): Promise<Loaded> {
@@ -185,6 +197,10 @@ async function loadPreview(r2Key: string, kind: PreviewKind): Promise<Loaded> {
   try {
     if (kind === 'text') return { type: 'text', ...bytesToText(bytes) }
     if (kind === 'docx') return { type: 'docx', html: await docxToHtml(bytes) }
+    if (kind === 'html') {
+      const csp = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:">'
+      return { type: 'html', html: csp + bytesToText(bytes).text }
+    }
     return { type: 'pptx', slides: await pptxToSlides(bytes) }
   } catch {
     return { type: 'error', message: 'Could not build a preview. Use Download.' }

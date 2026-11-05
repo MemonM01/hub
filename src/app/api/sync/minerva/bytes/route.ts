@@ -36,7 +36,8 @@ export async function POST(request: Request) {
   if (bytes.length > RELAY_MAX_BYTES) return json(request, { error: 'Too large to relay' }, 413)
   // Never store an HTML login page as if it were the file.
   const head = new TextDecoder().decode(bytes.slice(0, 200)).trimStart().toLowerCase()
-  if (head.startsWith('<!doctype html') || head.startsWith('<html')) {
+  const isHtmlFile = /html/.test(row.mime_type ?? '')
+  if (!isHtmlFile && (head.startsWith('<!doctype html') || head.startsWith('<html'))) {
     return json(request, { error: 'Minerva sent a web page, not the file.' }, 422)
   }
 
