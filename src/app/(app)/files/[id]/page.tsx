@@ -30,6 +30,7 @@ type FileDetail = {
   module_id: string | null
   sort_status: string
   sort_confidence: number | null
+  sort_error: string | null
   modules: { code: string } | null
   assignments: { sheet: string } | null
 }
@@ -42,7 +43,7 @@ export default async function FilePage({ params, searchParams }: PageProps<'/fil
   const { data } = await supabase
     .from('files')
     .select(
-      'id, filename, title, mime_type, size_bytes, r2_key, kind, week, source, summary, pinned, created_at, module_id, sort_status, sort_confidence, modules(code), assignments(sheet)',
+      'id, filename, title, mime_type, size_bytes, r2_key, kind, week, source, summary, pinned, created_at, module_id, sort_status, sort_confidence, sort_error, modules(code), assignments(sheet)',
     )
     .eq('id', id)
     .maybeSingle()
@@ -96,6 +97,7 @@ export default async function FilePage({ params, searchParams }: PageProps<'/fil
                   : `The sorter was not sure (${Math.round((file.sort_confidence ?? 0) * 100)}%), so it left this for you.`}
             </p>
           ) : null}
+          {file.sort_error ? <p className="text-xs text-danger">Sorter: {file.sort_error}</p> : null}
           <FilingForm
             fileId={file.id}
             modules={await getModules()}

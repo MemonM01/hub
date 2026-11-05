@@ -34,6 +34,14 @@ export async function sortSome(): Promise<{ done: number; left: number }> {
   return { done: data?.length ?? 0, left: count ?? 0 }
 }
 
+/** Put every unpinned real file back in the queue. */
+export async function resortAll() {
+  await requireUserId()
+  const supabase = await createClient()
+  await supabase.from('files').update({ sort_status: 'pending' }).eq('pinned', false).not('size_bytes', 'is', null)
+  refresh()
+}
+
 export async function resortFile(fileId: string) {
   const userId = await requireUserId()
   const supabase = await createClient()

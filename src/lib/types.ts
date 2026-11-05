@@ -50,3 +50,16 @@ export const FOLDERS = {
   other: { label: 'Other files', kinds: ['reading', 'other'] },
 } as const
 export type FolderKey = keyof typeof FOLDERS
+
+export const KIND_LABEL: Record<string, string> = {
+  lecture_slides: 'Lecture slides',
+  lecture_notes: 'Lecture notes',
+  coursework: 'Coursework',
+  worksheet: 'Worksheet',
+  submission_template: 'Submission template',
+  lab_sheet: 'Lab sheet',
+  solution: 'Solution',
+  quiz: 'Quiz',
+  reading: 'Reading',
+  other: 'Other',
+}

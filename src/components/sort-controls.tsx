@@ -2,28 +2,30 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { fileManually, resortFile, sortSome } from '@/lib/actions/sorting'
-import type { Module } from '@/lib/types'
+import { fileManually, resortAll, resortFile, sortSome } from '@/lib/actions/sorting'
+import { KIND_LABEL, type Module } from '@/lib/types'
 
-const KIND_LABEL: Record<string, string> = {
-  lecture_slides: 'Lecture slides',
-  lecture_notes: 'Lecture notes',
-  coursework: 'Coursework',
-  worksheet: 'Worksheet',
-  submission_template: 'Submission template',
-  lab_sheet: 'Lab sheet',
-  solution: 'Solution',
-  quiz: 'Quiz',
-  reading: 'Reading',
-  other: 'Other',
-}
-export { KIND_LABEL }
 
-export function SortBacklog({ waiting }: { waiting: number }) {
+
+export function SortBacklog({ waiting, total }: { waiting: number; total: number }) {
   const router = useRouter()
   const [left, setLeft] = useState(waiting)
   const [running, setRunning] = useState(false)
-  if (!waiting && !running) return null
+  if (!waiting && !running) {
+    if (!total) return null
+    return (
+      <button
+        type="button"
+        className="text-xs text-muted underline"
+        onClick={async () => {
+          await resortAll()
+          router.refresh()
+        }}
+      >
+        Sort every file again (files you filed by hand are left alone)
+      </button>
+    )
+  }
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-line px-4 py-3 text-sm">
       <span>{running ? `Sorting… ${left} left` : `${waiting} file(s) waiting for the sorter.`}</span>

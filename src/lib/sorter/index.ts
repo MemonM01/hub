@@ -120,10 +120,13 @@ export async function sortFile(db: SupabaseClient, userId: string, fileId: strin
     const thumb = await thumbnail(file, bytes).catch(() => null)
 
     let verdict: Verdict | null = null
+    let sortError: string | null = null
     try {
       verdict = await askModel(file, text, modules)
-    } catch {
+      if (!verdict) sortError = 'AI_GATEWAY_API_KEY is not set on the server.'
+    } catch (e) {
       verdict = null // fall back to filename rules below
+      sortError = ((e as Error).message || String(e)).slice(0, 500)
     }
 
     // Filename rules are reliable for these, so they win over the model.
@@ -148,6 +151,7 @@ export async function sortFile(db: SupabaseClient, userId: string, fileId: strin
       summary: verdict?.summary ?? null,
       sort_confidence: confidence,
       thumbnail_key: thumb,
+      sort_error: sortError,
       sort_status: file_it || file.pinned ? 'sorted' : 'needs_look',
     }
 
@@ -187,7 +191,11 @@ export async function sortFile(db: SupabaseClient, userId: string, fileId: strin
     if (error) throw new Error(error.message)
     return { sorted: update.sort_status === 'sorted', confidence }
   } catch (e) {
-    await db.from('files').update({ sort_status: 'failed' }).eq('id', file.id).eq('user_id', userId)
+    await db
+      .from('files')
+      .update({ sort_status: 'failed', sort_error: ((e as Error).message || String(e)).slice(0, 500) })
+      .eq('id', file.id)
+      .eq('user_id', userId)
     return { failed: true, error: (e as Error).message }
   }
 }

@@ -5,7 +5,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getModules } from '@/lib/data'
 import { formatBytes, formatDate } from '@/lib/format'
 import { Uploader } from '@/components/uploader'
-import { SortBacklog, KIND_LABEL } from '@/components/sort-controls'
+import { SortBacklog } from '@/components/sort-controls'
+import { KIND_LABEL } from '@/lib/types'
 
 export const instant = false
 export const metadata: Metadata = { title: 'Files' }
@@ -70,7 +71,7 @@ export default async function FilesPage({ searchParams }: PageProps<'/files'>) {
       ) : (
         <>
           <Uploader />
-          <SortBacklog waiting={files.filter((f) => f.sort_status === 'pending').length} />
+          <SortBacklog waiting={files.filter((f) => f.sort_status === 'pending').length} total={files.length} />
         </>
       )}
 
