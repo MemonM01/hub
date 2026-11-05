@@ -28,7 +28,11 @@ export function SortBacklog({ waiting, total }: { waiting: number; total: number
   }
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-line px-4 py-3 text-sm">
-      <span>{running ? `Sorting… ${left} left` : `${waiting} file(s) waiting for the sorter.`}</span>
+      <span>
+        {running
+          ? `Sorting… ${left} left (about 4 a minute on free AI credit, keep this page open)`
+          : `${waiting} file(s) waiting for the sorter.`}
+      </span>
       {!running ? (
         <button
           type="button"
@@ -36,12 +40,17 @@ export function SortBacklog({ waiting, total }: { waiting: number; total: number
           onClick={async () => {
             setRunning(true)
             let n = waiting
-            while (n > 0) {
+            let stalls = 0
+            while (n > 0 && stalls < 5) {
+              const started = Date.now()
               const res = await sortSome()
               n = res.left
               setLeft(n)
               router.refresh()
-              if (!res.done) break
+              stalls = res.done ? 0 : stalls + 1
+              // About 4 a minute keeps under the free tier's 5 requests a minute.
+              const wait = (res.rateLimited ? 30000 : 15000) - (Date.now() - started)
+              if (n > 0 && wait > 0) await new Promise((r) => setTimeout(r, wait))
             }
             setRunning(false)
           }}

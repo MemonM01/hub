@@ -127,8 +127,19 @@ export async function sortFile(db: SupabaseClient, userId: string, fileId: strin
       verdict = await askModel(file, text, modules)
       if (!verdict) sortError = 'AI_GATEWAY_API_KEY is not set on the server.'
     } catch (e) {
+      const msg = ((e as Error).message || String(e)).slice(0, 500)
+      // Free AI Gateway credit allows a few requests a minute. Leave it queued and try again later
+      // rather than filing it on filename rules alone.
+      if (/rate limit|429|too many requests/i.test(msg)) {
+        await db
+          .from('files')
+          .update({ sort_status: 'pending', sort_error: 'Waiting: the AI rate limit was hit, it will retry.' })
+          .eq('id', file.id)
+          .eq('user_id', userId)
+        return { rateLimited: true }
+      }
       verdict = null // fall back to filename rules below
-      sortError = ((e as Error).message || String(e)).slice(0, 500)
+      sortError = msg
     }
 
     // Filename rules are reliable for these, so they win over the model.

@@ -13,8 +13,11 @@ function refresh(fileId?: string) {
   if (fileId) revalidatePath(`/files/${fileId}`)
 }
 
-/** Sort a few waiting files. The Files page calls this in a loop until nothing is left. */
-export async function sortSome(): Promise<{ done: number; left: number }> {
+/**
+ * Sort one waiting file. The Files page calls this in a loop, spaced out, because free AI Gateway
+ * credit allows about 5 requests a minute.
+ */
+export async function sortSome(): Promise<{ done: number; left: number; rateLimited: boolean }> {
   const userId = await requireUserId()
   const supabase = await createClient()
   const { data } = await supabase
@@ -23,15 +26,19 @@ export async function sortSome(): Promise<{ done: number; left: number }> {
     .in('sort_status', ['pending'])
     .not('size_bytes', 'is', null)
     .order('created_at')
-    .limit(3)
-  for (const f of data ?? []) await sortFile(supabase, userId, f.id)
+    .limit(1)
+  let rateLimited = false
+  for (const f of data ?? []) {
+    const res = await sortFile(supabase, userId, f.id)
+    if ('rateLimited' in res && res.rateLimited) rateLimited = true
+  }
   const { count } = await supabase
     .from('files')
     .select('id', { count: 'exact', head: true })
     .eq('sort_status', 'pending')
     .not('size_bytes', 'is', null)
   refresh()
-  return { done: data?.length ?? 0, left: count ?? 0 }
+  return { done: rateLimited ? 0 : (data?.length ?? 0), left: count ?? 0, rateLimited }
 }
 
 /** Put every unpinned real file back in the queue. */
