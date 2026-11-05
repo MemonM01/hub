@@ -72,3 +72,8 @@ export async function getObjectBytes(key: string, maxBytes = 50 * 1024 * 1024): 
 export async function deleteObject(key: string) {
   await r2().send(new DeleteObjectCommand({ Bucket: env.r2Bucket(), Key: key }))
 }
+
+/** Server-side upload, used only to relay small Minerva files that the browser could not PUT. */
+export async function putBytes(key: string, bytes: Uint8Array, contentType: string) {
+  await r2().send(new PutObjectCommand({ Bucket: env.r2Bucket(), Key: key, Body: bytes, ContentType: contentType }))
+}

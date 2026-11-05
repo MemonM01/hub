@@ -24,3 +24,10 @@ assert.equal(normaliseSheet(' 01_02 '), '1.2')
 assert.equal(normaliseSheet('1'), null)
 assert.deepEqual(['1.10', '1.2', '2.1', '1.9'].sort(compareSheets), ['1.2', '1.9', '1.10', '2.1'])
 console.log('sheets: all passed')
+
+import { looksLikeSolution, looksLikeTemplate } from '../src/lib/sheets-kind'
+assert.equal(looksLikeSolution('Worksheet1_2_solutions.pdf'), true)
+assert.equal(looksLikeSolution('COMP2850_Worksheet1_2.pdf'), false)
+assert.equal(looksLikeSolution('Sheet 2.1 Answers.pdf'), true)
+assert.equal(looksLikeTemplate('Worksheet1_2_submission_template.docx'), true)
+console.log('kinds: all passed')

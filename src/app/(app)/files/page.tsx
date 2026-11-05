@@ -25,14 +25,22 @@ const BACK = encodeURIComponent('/files')
 export default async function FilesPage() {
   await requireUserId()
   const supabase = await createClient()
-  const [modules, res] = await Promise.all([
+  const [modules, res, namesRes] = await Promise.all([
     getModules({ includeArchived: true }),
     supabase
       .from('files')
       .select('id, filename, title, kind, module_id, size_bytes, sort_status, created_at')
       .not('size_bytes', 'is', null) // a saved name with no bytes is not a file
       .order('created_at', { ascending: false }),
+    // Minerva often saves a name before the bytes exist. Those are not files, so they get their own list.
+    supabase
+      .from('files')
+      .select('id, filename, title, module_id')
+      .is('size_bytes', null)
+      .eq('source', 'minerva')
+      .order('filename'),
   ])
+  const names = (namesRes.data ?? []) as { id: string; filename: string; title: string | null; module_id: string | null }[]
   const files = (res.data ?? []) as Row[]
   const codeOf = new Map(modules.map((m) => [m.id, m.code]))
   const needsLook = files.filter((f) => f.sort_status !== 'sorted')
@@ -64,6 +72,25 @@ export default async function FilesPage() {
           <p className="text-sm text-muted">Sorted files appear here once the sorter runs (step 6).</p>
         )}
       </div>
+
+      {names.length ? (
+        <details>
+          <summary className="cursor-pointer text-sm text-muted">
+            Names without a file ({names.length}): saved from Minerva, but the bytes never arrived
+          </summary>
+          <ul className="mt-2 divide-y divide-line rounded-lg border border-dashed border-line">
+            {names.map((n) => (
+              <li key={n.id} className="flex items-center gap-3 px-4 py-2 text-sm text-muted">
+                <span className="hidden w-20 shrink-0 font-mono text-xs sm:block">{n.module_id ? codeOf.get(n.module_id) : ''}</span>
+                <Link href={`/files/${n.id}?from=${BACK}`} prefetch={false} className="min-w-0 flex-1 truncate hover:underline">
+                  {n.title ?? n.filename}
+                </Link>
+                <span className="text-xs">Add the file</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
     </section>
   )
 }
