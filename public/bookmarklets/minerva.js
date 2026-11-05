@@ -203,10 +203,13 @@
   // ---------- bytes ----------
   function getBytes(url) {
     return fetch(url, { credentials: 'include' }).then(function (res) {
-      if (!res.ok) throw new Error('download ' + res.status)
+      if (!res.ok) throw new Error('download ' + res.status + (res.url && res.url !== url ? ' via ' + new URL(res.url).host : ''))
       var type = res.headers.get('content-type') || ''
       if (/text\/html/i.test(type) && !/\.html?$/i.test(url)) throw new Error('got a web page, not the file')
       return res.blob()
+    }, function (e) {
+      // A redirect to another host that does not allow this page to read it ends up here.
+      throw new Error('download blocked (' + (e && e.message) + ')')
     })
   }
 
@@ -226,14 +229,31 @@
           method: 'POST',
           headers: { authorization: 'Bearer ' + TOKEN, 'content-type': 'application/octet-stream' },
           body: blob,
-        }).then(function (res) {
-          return res.ok ? 'stored' : 'failed'
-        })
+        }).then(
+          function (res) {
+            if (res.ok) return 'stored'
+            return res.text().then(function (t) {
+              throw new Error('relay ' + res.status + ' ' + t.slice(0, 80))
+            })
+          },
+          function (e) {
+            throw new Error('relay blocked (' + (e && e.message) + ')')
+          },
+        )
       })
   }
 
   // ---------- run ----------
   var totals = { recorded: 0, stored: 0, nameOnly: 0, failed: 0, skipped: 0 }
+  var reasons = {}
+  function fail(e) {
+    totals.failed++
+    var r = (e && e.message) || String(e)
+    if (!reasons[r]) {
+      reasons[r] = 1
+      if (Object.keys(reasons).length <= 4) log('Why: ' + r, 'bad')
+    }
+  }
   log('Asking hub for your modules…', 'dim')
   hub('/api/sync/minerva/config')
     .then(function (state) {
@@ -281,11 +301,9 @@
                           function (result) {
                             if (result === 'stored') totals.stored++
                             else if (result === 'too-big') totals.nameOnly++
-                            else totals.failed++
+                            else fail(new Error(String(result)))
                           },
-                          function () {
-                            totals.failed++
-                          },
+                          fail,
                         )
                     })
                   })
