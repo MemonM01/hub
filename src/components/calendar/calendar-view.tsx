@@ -25,6 +25,9 @@ export function parseDay(value: string | string[] | undefined, today: TZDate): T
 }
 const ymd = (d: Date) => format(d, 'yyyy-MM-dd')
 const london = (iso: string) => new TZDate(iso, TZ)
+// Sessions with no module (personal tutorials, maths lunch): show the short name from the summary.
+const label = (s: { module_code: string | null; summary: string | null }) =>
+  s.module_code ?? (s.summary ?? '').replace(/^.*? - /, '').replace(/\s*<[^>]*>\s*$/, '').replace(/\/\d+\s*\w*$/, '').trim()
 const minutesOf = (d: TZDate) => d.getHours() * 60 + d.getMinutes()
 
 function tone(type: string | null) {
@@ -126,7 +129,7 @@ export function CalendarView({
                   <span className="text-sm font-medium tabular-nums">
                     {format(london(s.starts_at), 'HH:mm')} to {format(london(s.ends_at), 'HH:mm')}
                   </span>
-                  <span className="font-mono text-xs">{s.module_code}</span>
+                  <span className={s.module_code ? 'font-mono text-xs' : 'text-xs'}>{label(s)}</span>
                 </div>
                 <div className="mt-0.5 text-sm">{s.activity_type ?? s.summary}</div>
                 {s.location ? <div className="mt-0.5 text-sm text-muted">{s.location}</div> : null}
@@ -174,7 +177,7 @@ export function CalendarView({
                       className={`absolute inset-x-1 overflow-hidden rounded-md border border-line border-l-4 ${tone(s.activity_type)} bg-paper px-1.5 py-1 text-[11px] leading-tight shadow-sm`}
                       style={{ top: top + 1, height }}
                     >
-                      <div className="font-mono font-medium">{s.module_code}</div>
+                      <div className={s.module_code ? 'font-mono font-medium' : 'truncate font-medium'}>{label(s)}</div>
                       <div className="truncate">{s.activity_type ?? s.summary}</div>
                       {height > 44 ? <div className="truncate text-muted">{s.location}</div> : null}
                       {height > 60 ? (
