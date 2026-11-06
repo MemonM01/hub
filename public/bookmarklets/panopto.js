@@ -469,6 +469,38 @@
       })
   }
 
+  // Preview images: Panopto only gives them to a logged-in browser, so copy them to hub once.
+  function copyThumbs(list) {
+    var i = 0
+    var ok = 0
+    function worker() {
+      if (i >= list.length) return Promise.resolve()
+      var t = list[i++]
+      var url = String(t.url || '').replace(/^https?:\/\/[^/]+/, location.origin)
+      if (url.indexOf(location.origin + '/Panopto/') !== 0) return worker()
+      return fetch(url, { credentials: 'include' })
+        .then(function (res) {
+          if (!res.ok) return null
+          return res.blob()
+        })
+        .then(function (blob) {
+          if (!blob || !/^image\//.test(blob.type) || blob.size < 500) return null
+          return fetch(HUB + '/api/sync/panopto/thumb?session=' + encodeURIComponent(t.id), {
+            method: 'POST',
+            headers: { authorization: 'Bearer ' + TOKEN, 'content-type': blob.type },
+            body: blob,
+          }).then(function (res) {
+            if (res.ok) ok++
+          })
+        })
+        .catch(function () {})
+        .then(worker)
+    }
+    return Promise.all([worker(), worker(), worker(), worker()]).then(function () {
+      return ok
+    })
+  }
+
   // ---------- run ----------
   var totals = { saved: 0, created: 0 }
   log('Asking hub for your modules…', 'dim')
@@ -557,6 +589,16 @@
           }, Promise.resolve())
           }
         })
+    })
+    .then(function () {
+      return hub('/api/sync/panopto/config').then(function (st) {
+        var need = st.needThumbs || []
+        if (!need.length) return
+        log('Copying ' + need.length + ' preview image(s)…', 'dim')
+        return copyThumbs(need).then(function (n) {
+          log(n + ' preview image(s) copied', 'dim')
+        })
+      }).catch(function () {})
     })
     .then(function () {
       log('Done. ' + totals.saved + ' lecture(s) saved, ' + totals.created + ' new.', 'good')

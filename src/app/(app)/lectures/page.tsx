@@ -4,9 +4,8 @@ import { requireUserId } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { getModules } from '@/lib/data'
 import { parseModuleCode } from '@/lib/sheets'
-import { formatDate } from '@/lib/format'
-import { ArchiveFolderButton, FolderMatch, WatchedToggle } from '@/components/lecture-controls'
-import { lectureName } from '@/lib/lecture-name'
+import { ArchiveFolderButton, FolderMatch } from '@/components/lecture-controls'
+import { LectureTile, TileGrid, type TileLecture } from '@/components/lecture-tile'
 import { moduleColors } from '@/lib/module-color'
 import { ModuleTag } from '@/components/module-tag'
 
@@ -14,20 +13,9 @@ export const instant = false
 export const metadata: Metadata = { title: 'Lectures' }
 
 type Folder = { id: string; name: string; module_id: string | null; archived: boolean }
-type Lecture = {
-  id: string
-  title: string
-  module_id: string | null
-  folder_id: string | null
-  delivered_at: string | null
-  duration_seconds: number | null
-  transcript: string | null
-  lecture_progress: { watched: boolean; percent: number } | null
-}
+type Lecture = TileLecture & { module_id: string | null; folder_id: string | null }
 
-function minutes(s: number | null) {
-  return s ? `${Math.round(s / 60)} min` : ''
-}
+const PER_MODULE = 8
 
 export default async function LecturesPage() {
   await requireUserId()
@@ -37,7 +25,7 @@ export default async function LecturesPage() {
     supabase.from('panopto_folders').select('id, name, module_id, archived').order('name'),
     supabase
       .from('lectures')
-      .select('id, title, module_id, folder_id, delivered_at, duration_seconds, transcript, lecture_progress(watched, percent)')
+      .select('id, title, module_id, folder_id, delivered_at, duration_seconds, thumbnail_key, lecture_progress(watched, percent)')
       .order('delivered_at', { ascending: false }),
   ])
   const folders = (foldersRes.data ?? []) as Folder[]
@@ -47,10 +35,20 @@ export default async function LecturesPage() {
   const unmatched = folders.filter((f) => !f.module_id && !f.archived)
   const color = moduleColors(modules.map((m) => m.code))
   const countIn = (folderId: string) => lectures.filter((l) => l.folder_id === folderId).length
+  const codeOf = new Map(modules.map((m) => [m.id, m.code]))
+  const filed = visible.filter((l) => l.module_id && codeOf.has(l.module_id))
+  const behind = filed.filter((l) => !l.lecture_progress?.watched)
 
   return (
     <section className="space-y-8">
-      <h1 className="text-2xl font-semibold tracking-tight">Lectures</h1>
+      <header>
+        <h1 className="text-2xl font-semibold tracking-tight">Lectures</h1>
+        {filed.length ? (
+          <p className="mt-1 text-sm text-muted">
+            {behind.length ? `${behind.length} not watched yet, newest first.` : 'All caught up.'} Click one to watch it with its transcript.
+          </p>
+        ) : null}
+      </header>
 
       {unmatched.length ? (
         <div className="rounded-lg border border-accent p-4">
@@ -69,30 +67,63 @@ export default async function LecturesPage() {
         </div>
       ) : null}
 
+      {behind.length ? (
+        <div>
+          <h2 className="mb-3 text-base font-semibold">Catch up</h2>
+          <TileGrid>
+            {behind.slice(0, 8).map((l) => {
+              const code = codeOf.get(l.module_id!)!
+              return (
+                <li key={l.id}>
+                  <LectureTile l={l} code={code} color={color.get(code)} from="/lectures" />
+                </li>
+              )
+            })}
+          </TileGrid>
+        </div>
+      ) : null}
+
       {modules.map((m) => {
         const rows = visible.filter((l) => l.module_id === m.id)
         if (!rows.length) return null
         const watched = rows.filter((l) => l.lecture_progress?.watched).length
         return (
           <div key={m.id}>
-            <h2 className="mb-2 flex items-baseline gap-3">
-              <Link href={`/modules/${m.code}/videos`} prefetch={false} className="hover:underline">
-                <ModuleTag code={m.code} color={color.get(m.code)} className="text-base" />
-              </Link>
+            <h2 className="mb-3 flex flex-wrap items-baseline gap-x-3">
+              <ModuleTag code={m.code} color={color.get(m.code)} className="text-base" />
               <span className="text-sm text-muted">{m.name}</span>
               <span className="ml-auto text-sm tabular-nums text-muted">
                 {watched} of {rows.length} watched
               </span>
             </h2>
-            <LectureList rows={rows} />
+            <TileGrid>
+              {rows.slice(0, PER_MODULE).map((l) => (
+                <li key={l.id}>
+                  <LectureTile l={l} color={color.get(m.code)} from="/lectures" />
+                </li>
+              ))}
+            </TileGrid>
+            {rows.length > PER_MODULE ? (
+              <Link href={`/modules/${m.code}/videos`} prefetch={false} className="mt-3 inline-block text-sm font-medium text-accent hover:underline">
+                All {rows.length} {m.code} recordings →
+              </Link>
+            ) : null}
           </div>
         )
       })}
 
       {visible.some((l) => !l.module_id) ? (
         <div>
-          <h2 className="mb-2 text-sm font-medium text-muted">Not filed yet</h2>
-          <LectureList rows={visible.filter((l) => !l.module_id)} />
+          <h2 className="mb-3 text-sm font-medium text-muted">Not filed yet</h2>
+          <TileGrid>
+            {visible
+              .filter((l) => !l.module_id)
+              .map((l) => (
+                <li key={l.id}>
+                  <LectureTile l={l} from="/lectures" />
+                </li>
+              ))}
+          </TileGrid>
         </div>
       ) : null}
 
@@ -121,23 +152,5 @@ export default async function LecturesPage() {
         </details>
       ) : null}
     </section>
-  )
-}
-
-function LectureList({ rows }: { rows: Lecture[] }) {
-  return (
-    <ul className="divide-y divide-line rounded-xl bg-surface shadow-[0_0_0_1px_var(--line)]">
-      {rows.map((l) => (
-        <li key={l.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-sm">
-          <Link href={`/lectures/${l.id}`} prefetch={false} className="min-w-0 flex-1 truncate hover:underline">
-            {lectureName(l.title)}
-          </Link>
-          <span className="text-xs text-muted">{formatDate(l.delivered_at)}</span>
-          <span className="hidden w-14 text-right text-xs text-muted sm:inline">{minutes(l.duration_seconds)}</span>
-
-          <WatchedToggle lectureId={l.id} watched={!!l.lecture_progress?.watched} />
-        </li>
-      ))}
-    </ul>
   )
 }

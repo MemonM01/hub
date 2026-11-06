@@ -5,7 +5,8 @@ import { z } from 'zod'
 import sharp from 'sharp'
 import { getObjectBytes, putBytes } from '@/lib/r2'
 import { extractText } from './extract'
-import { assignmentExternalId, parseModuleCode, parseSheet } from '@/lib/sheets'
+import { assignmentExternalId, parseLab, parseModuleCode, parseSheet } from '@/lib/sheets'
+import { defaultDue } from '@/lib/term'
 import { looksLikeSolution, looksLikeTemplate } from '@/lib/sheets-kind'
 
 export const KINDS = [
@@ -154,7 +155,10 @@ export async function sortFile(db: SupabaseClient, userId: string, fileId: strin
     const modelCode = verdict?.moduleCode && byCode.has(verdict.moduleCode) ? verdict.moduleCode : null
     const moduleCode = knownModule ?? (nameCode && byCode.has(nameCode) ? nameCode : modelCode)
     const kind: Kind = nameKind ?? verdict?.kind ?? 'other'
-    const sheet = SHEET_KINDS.includes(kind) ? (nameSheet ?? verdict?.sheet ?? null) : null
+    // Labs are their own rows ('Lab 3'); the model's sheet only counts when it looks like 1.2.
+    const nameLab = parseLab(file.filename) ?? (file.title ? parseLab(file.title) : null)
+    const modelSheet = verdict?.sheet && /^\d{1,2}\.\d{1,2}$/.test(verdict.sheet) ? verdict.sheet : null
+    const sheet = SHEET_KINDS.includes(kind) ? (nameSheet ?? nameLab ?? modelSheet) : null
     const week = file.week ?? verdict?.week ?? null
 
     let confidence = verdict?.confidence ?? (moduleCode && nameKind ? 0.7 : 0.3)
@@ -192,7 +196,14 @@ export async function sortFile(db: SupabaseClient, userId: string, fileId: strin
           const created = await db
             .from('assignments')
             .upsert(
-              { user_id: userId, module_id: moduleId, sheet, external_id: ext, is_quiz: kind === 'quiz' },
+              {
+                user_id: userId,
+                module_id: moduleId,
+                sheet,
+                external_id: ext,
+                is_quiz: kind === 'quiz',
+                due_at: defaultDue(sheet, week),
+              },
               { onConflict: 'user_id,external_id' },
             )
             .select('id')

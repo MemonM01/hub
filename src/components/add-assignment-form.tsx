@@ -10,7 +10,7 @@ export function AddAssignmentForm({ modules }: { modules: Module[] }) {
   if (!modules.length) return null
   return (
     <details className="rounded-lg border border-line p-3" open={!!state.error}>
-      <summary className="cursor-pointer text-sm font-medium">Add a sheet by hand</summary>
+      <summary className="cursor-pointer text-sm font-medium">Add something to do</summary>
       <form action={action} className="mt-3 flex flex-wrap items-end gap-2">
         <label className="block">
           <span className="text-xs text-muted">Module</span>
@@ -24,7 +24,7 @@ export function AddAssignmentForm({ modules }: { modules: Module[] }) {
         </label>
         <label className="block">
           <span className="text-xs text-muted">Sheet</span>
-          <input name="sheet" required placeholder="1.2" inputMode="decimal" className="field mt-1 w-20" />
+          <input name="sheet" required placeholder="1.2 or Lab 3" className="field mt-1 w-28" />
         </label>
         <label className="block min-w-40 flex-1">
           <span className="text-xs text-muted">Title (optional)</span>

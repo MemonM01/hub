@@ -1,13 +1,18 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import { TZDate } from '@date-fns/tz'
+import { format } from 'date-fns'
 import { requireUserId } from '@/lib/auth'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, requestNow } from '@/lib/supabase/server'
 import { getAssignments, getModules } from '@/lib/data'
-import { compareSheets } from '@/lib/sheets'
-import { formatDateTime } from '@/lib/format'
+import { compareSheets, sheetLabel } from '@/lib/sheets'
+import { TZ } from '@/lib/format'
+import { DONE, type Assignment } from '@/lib/types'
 import { AddAssignmentForm } from '@/components/add-assignment-form'
 import { StatusSelect } from '@/components/status-select'
 import { AssignmentRowDrop, AssignmentsDropZone } from '@/components/assignment-drop'
+import { DueEdit } from '@/components/due-edit'
+import { dueText } from '@/lib/due-text'
 import { moduleColors } from '@/lib/module-color'
 import { ModuleTag } from '@/components/module-tag'
 
@@ -24,6 +29,7 @@ type AttachedFile = {
 export default async function AssignmentsPage() {
   await requireUserId()
   const supabase = await createClient()
+  const now = await requestNow()
   const [modules, assignments, filesRes] = await Promise.all([
     getModules(),
     getAssignments(),
@@ -34,12 +40,60 @@ export default async function AssignmentsPage() {
       .not('size_bytes', 'is', null), // names without bytes are not files
   ])
   const files = (filesRes.data ?? []) as AttachedFile[]
-  const visible = assignments.filter((a) => a.status !== 'cancelled')
+  const codeOf = new Map(modules.map((m) => [m.id, m.code]))
+  const live = assignments.filter((a) => a.status !== 'cancelled' && codeOf.has(a.module_id))
+  const todo = live
+    .filter((a) => !DONE.includes(a.status))
+    .sort((a, b) => (a.due_at ?? '9').localeCompare(b.due_at ?? '9') || compareSheets(a.sheet, b.sheet))
+  const done = live.filter((a) => DONE.includes(a.status))
   const color = moduleColors(modules.map((m) => m.code))
 
+  const row = (a: Assignment, showModule: boolean) => {
+    const attached = files.filter((f) => f.assignment_id === a.id)
+    const code = codeOf.get(a.module_id)!
+    const due = a.due_at ? dueText(a.due_at, now) : null
+    const isDone = DONE.includes(a.status)
+    const dueValue = a.due_at ? format(new TZDate(a.due_at, TZ), 'yyyy-MM-dd') : ''
+    return (
+      <AssignmentRowDrop key={a.id} assignmentId={a.id}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          {showModule ? <ModuleTag code={code} color={color.get(code)} className="w-24 shrink-0" /> : null}
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-medium">
+              {sheetLabel(a)}
+              {a.title && /^\d+\.\d+$/.test(a.sheet) ? <span className="font-normal text-muted"> {a.title}</span> : null}
+            </div>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-muted">
+              {isDone ? null : (
+                <DueEdit id={a.id} value={dueValue} label={due ? due.text : 'Add a due date'} tone={due?.tone ?? 'text-muted'} />
+              )}
+              {attached.map((f) => (
+                <Link
+                  key={f.id}
+                  href={`/files/${f.id}?from=${encodeURIComponent('/assignments')}`}
+                  prefetch={false}
+                  className="truncate underline-offset-2 hover:underline"
+                >
+                  {f.title ?? f.filename}
+                </Link>
+              ))}
+            </div>
+          </div>
+          <StatusSelect id={a.id} status={a.status} />
+        </div>
+      </AssignmentRowDrop>
+    )
+  }
+
   return (
-    <section className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Assignments</h1>
+    <section className="space-y-8">
+      <header>
+        <h1 className="text-2xl font-semibold tracking-tight">Assignments</h1>
+        <p className="mt-1 text-sm text-muted">
+          Each sheet is due 10 working days after it comes out. Click a due date to change it.
+        </p>
+      </header>
+
       {modules.length === 0 ? (
         <p className="text-sm text-muted">
           Add a module first on{' '}
@@ -48,68 +102,51 @@ export default async function AssignmentsPage() {
           </Link>
           .
         </p>
-      ) : (
-        <AddAssignmentForm modules={modules} />
-      )}
+      ) : null}
 
       <AssignmentsDropZone>
-        <div className="space-y-6">
-          {modules.map((m) => {
-            const rows = visible.filter((a) => a.module_id === m.id).sort((a, b) => compareSheets(a.sheet, b.sheet))
-            if (!rows.length) return null
-            return (
-              <div key={m.id}>
-                <h2 className="mb-2 flex items-baseline gap-2">
-                  <Link href={`/modules/${m.code}`} prefetch={false} className="hover:underline">
-                    <ModuleTag code={m.code} color={color.get(m.code)} className="text-base" />
-                  </Link>
-                  {m.name ? <span className="text-sm text-muted">{m.name}</span> : null}
-                </h2>
-                <ul className="divide-y divide-line rounded-xl bg-surface shadow-[0_0_0_1px_var(--line)]">
-                  {rows.map((a) => {
-                    const attached = files.filter((f) => f.assignment_id === a.id)
-                    const back = '/assignments'
-                    return (
-                      <AssignmentRowDrop key={a.id} assignmentId={a.id}>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                          <span className="w-10 text-sm font-semibold tabular-nums">{a.sheet}</span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 text-sm">
-                              <span className="truncate">{a.title ?? (a.is_quiz ? 'Quiz' : 'Worksheet')}</span>
-                              {a.is_quiz ? (
-                                <span className="rounded bg-line px-1.5 py-0.5 text-[10px]">Quiz</span>
-                              ) : null}
-                            </div>
-                            <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted">
-                              {a.due_at ? <span>Due {formatDateTime(a.due_at)}</span> : null}
-                              {attached.length ? (
-                                attached.map((f) => (
-                                  <Link
-                                    key={f.id}
-                                    href={`/files/${f.id}?from=${encodeURIComponent(back)}`}
-                                    prefetch={false}
-                                    className="truncate underline-offset-2 hover:underline"
-                                  >
-                                    {f.title ?? f.filename}
-                                  </Link>
-                                ))
-                              ) : (
-                                <span>No file yet</span>
-                              )}
-                            </div>
-                          </div>
-                          <StatusSelect id={a.id} status={a.status} />
-                        </div>
-                      </AssignmentRowDrop>
-                    )
-                  })}
-                </ul>
+        <div className="space-y-8">
+          <div>
+            <h2 className="mb-3 text-base font-semibold">
+              To do <span className="font-normal text-muted">{todo.length}</span>
+            </h2>
+            {todo.length ? (
+              <ul className="divide-y divide-line overflow-hidden rounded-xl bg-surface shadow-[0_0_0_1px_var(--line)]">
+                {todo.map((a) => row(a, true))}
+              </ul>
+            ) : (
+              <p className="rounded-xl border border-dashed border-line px-5 py-6 text-sm text-muted">Nothing to do. Nice.</p>
+            )}
+          </div>
+
+          {done.length ? (
+            <details className="group">
+              <summary className="cursor-pointer list-none text-base font-semibold">
+                <span className="mr-1 inline-block transition group-open:rotate-90">›</span> Done{' '}
+                <span className="font-normal text-muted">{done.length}</span>
+              </summary>
+              <div className="mt-3 space-y-5">
+                {modules.map((m) => {
+                  const rows = done.filter((a) => a.module_id === m.id).sort((a, b) => compareSheets(a.sheet, b.sheet))
+                  if (!rows.length) return null
+                  return (
+                    <div key={m.id}>
+                      <h3 className="mb-2">
+                        <ModuleTag code={m.code} color={color.get(m.code)} />
+                      </h3>
+                      <ul className="divide-y divide-line overflow-hidden rounded-xl bg-surface opacity-80 shadow-[0_0_0_1px_var(--line)]">
+                        {rows.map((a) => row(a, false))}
+                      </ul>
+                    </div>
+                  )
+                })}
               </div>
-            )
-          })}
+            </details>
+          ) : null}
         </div>
       </AssignmentsDropZone>
-      {modules.length > 0 && visible.length === 0 ? <p className="text-sm text-muted">No assignments yet.</p> : null}
+
+      {modules.length ? <AddAssignmentForm modules={modules} /> : null}
     </section>
   )
 }

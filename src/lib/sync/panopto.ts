@@ -85,10 +85,18 @@ export function cleanSessions(input: unknown): InSession[] {
 
 /** What the bookmarklet needs to target the next run. */
 export async function panoptoState(admin: SupabaseClient, userId: string) {
-  const [modules, folders, transcripts] = await Promise.all([
+  const [modules, folders, transcripts, thumbs] = await Promise.all([
     admin.from('modules').select('id, code').eq('user_id', userId).eq('archived', false),
     admin.from('panopto_folders').select('panopto_id, name, archived, module_id').eq('user_id', userId),
     admin.from('lectures').select('panopto_session_id').eq('user_id', userId).not('transcript', 'is', null),
+    admin
+      .from('lectures')
+      .select('panopto_session_id, thumbnail_url')
+      .eq('user_id', userId)
+      .is('thumbnail_key', null)
+      .not('thumbnail_url', 'is', null)
+      .not('module_id', 'is', null)
+      .limit(500),
   ])
   const codeOf = new Map((modules.data ?? []).map((m) => [m.id, m.code]))
   return {
@@ -100,6 +108,8 @@ export async function panoptoState(admin: SupabaseClient, userId: string) {
       moduleCode: f.module_id ? (codeOf.get(f.module_id) ?? null) : null,
     })),
     haveTranscripts: (transcripts.data ?? []).map((l) => l.panopto_session_id),
+    // Preview images hub has not copied yet; the bookmarklet can read them with my Panopto login.
+    needThumbs: (thumbs.data ?? []).map((l) => ({ id: l.panopto_session_id, url: l.thumbnail_url })),
   }
 }
 

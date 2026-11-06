@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { assignmentExternalId, normaliseSheet } from '@/lib/sheets'
 import { STATUSES, type Status } from '@/lib/types'
 import { TZ } from '@/lib/format'
+import { defaultDue } from '@/lib/term'
 import type { FormState } from './modules'
 
 // '2026-11-10T17:00' typed in Leeds time -> ISO string.
@@ -22,11 +23,11 @@ export async function addAssignment(_prev: FormState, formData: FormData): Promi
   const moduleId = String(formData.get('module_id') ?? '')
   const sheet = normaliseSheet(String(formData.get('sheet') ?? ''))
   if (!moduleId) return { error: 'Pick a module.' }
-  if (!sheet) return { error: 'Sheet number looks like 1.2.' }
+  if (!sheet) return { error: 'Use a sheet number like 1.2, or a short name like Lab 3.' }
   const title = String(formData.get('title') ?? '').trim() || null
   const isQuiz = formData.get('is_quiz') === 'on'
   const dueRaw = String(formData.get('due_at') ?? '').trim()
-  const dueAt = dueRaw ? londonToIso(dueRaw) : null
+  const dueAt = dueRaw ? londonToIso(dueRaw) : defaultDue(sheet)
   if (dueRaw && !dueAt) return { error: 'That due date did not make sense.' }
 
   const supabase = await createClient()
@@ -42,12 +43,12 @@ export async function addAssignment(_prev: FormState, formData: FormData): Promi
     due_at: dueAt,
     external_id: assignmentExternalId(mod.id, sheet),
   })
-  if (error?.code === '23505') return { error: `${mod.code} sheet ${sheet} already exists.` }
+  if (error?.code === '23505') return { error: `${mod.code} ${sheet} already exists.` }
   if (error) return { error: error.message }
 
   revalidatePath('/assignments')
   revalidatePath('/')
-  return { ok: `Added ${mod.code} sheet ${sheet}${isQuiz ? ' (quiz)' : ''}.` }
+  return { ok: `Added ${mod.code} ${sheet}${isQuiz ? ' (quiz)' : ''}.` }
 }
 
 export async function setAssignmentStatus(id: string, status: Status) {
@@ -55,6 +56,18 @@ export async function setAssignmentStatus(id: string, status: Status) {
   if (!STATUSES.includes(status)) throw new Error('Unknown status')
   const supabase = await createClient()
   const { error } = await supabase.from('assignments').update({ status }).eq('id', id)
+  if (error) throw new Error(error.message)
+  revalidatePath('/assignments')
+  revalidatePath('/')
+}
+
+/** Set or clear a due date. `value` is a Leeds date ('2026-11-13') or date-time; empty clears it. */
+export async function setAssignmentDue(id: string, value: string) {
+  await requireUserId()
+  const due = value.trim() ? londonToIso(value.trim()) : null
+  if (value.trim() && !due) throw new Error('That date did not make sense.')
+  const supabase = await createClient()
+  const { error } = await supabase.from('assignments').update({ due_at: due }).eq('id', id)
   if (error) throw new Error(error.message)
   revalidatePath('/assignments')
   revalidatePath('/')

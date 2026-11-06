@@ -9,6 +9,7 @@ export type LectureRow = {
   title: string
   delivered_at: string | null
   duration_seconds: number | null
+  thumbnail_key: string | null
   lecture_progress: { watched: boolean; percent: number } | null
 }
 
@@ -33,7 +34,7 @@ export async function getModuleBundle(rawCode: string) {
       .order('created_at', { ascending: false }),
     supabase
       .from('lectures')
-      .select('id, title, delivered_at, duration_seconds, lecture_progress(watched, percent)')
+      .select('id, title, delivered_at, duration_seconds, thumbnail_key, lecture_progress(watched, percent)')
       .eq('module_id', mod.id)
       .order('delivered_at', { ascending: false }),
     supabase

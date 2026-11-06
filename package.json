@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx scripts/test-sheets.ts && tsx scripts/test-order.ts && tsx scripts/test-ics.ts && tsx scripts/test-mcp.ts && NODE_OPTIONS=--conditions=react-server tsx scripts/test-links.ts"
+    "test": "tsx scripts/test-sheets.ts && tsx scripts/test-order.ts && tsx scripts/test-ics.ts && tsx scripts/test-term.ts && tsx scripts/test-mcp.ts && NODE_OPTIONS=--conditions=react-server tsx scripts/test-links.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1161.0",

@@ -2,11 +2,13 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireUserId } from '@/lib/auth'
 import { getModuleBundle } from '@/lib/module-data'
+import { getModules } from '@/lib/data'
 import { FOLDERS, STATUS_LABEL, type FileRow, type FolderKey } from '@/lib/types'
-import { compareSheets } from '@/lib/sheets'
-import { formatBytes, formatDate } from '@/lib/format'
+import { compareSheets, sheetLabel } from '@/lib/sheets'
+import { formatBytes } from '@/lib/format'
 import { compareFiles, groupOf } from '@/lib/order'
-import { lectureName } from '@/lib/lecture-name'
+import { LectureTile, TileGrid } from '@/components/lecture-tile'
+import { moduleColors } from '@/lib/module-color'
 import { TopicEditor } from '@/components/topic-editor'
 
 export const instant = false
@@ -18,6 +20,7 @@ export default async function FolderPage({ params }: PageProps<'/modules/[code]/
   const key = folder as FolderKey
   const { module: mod, files, lectures, assignments } = await getModuleBundle(code)
   const here = `/modules/${mod.code}/${key}`
+  const tint = moduleColors((await getModules()).map((m) => m.code)).get(mod.code)
 
   const kinds = FOLDERS[key].kinds as readonly string[]
   const inFolder = (
@@ -37,19 +40,15 @@ export default async function FolderPage({ params }: PageProps<'/modules/[code]/
 
       {key === 'videos' ? (
         lectures.length ? (
-          <ul className="divide-y divide-line rounded-xl bg-surface shadow-[0_0_0_1px_var(--line)]">
+          <TileGrid>
             {lectures.map((l) => (
-              <li key={l.id} className="flex items-center gap-3 px-4 py-2.5">
-                <Link href={`/lectures/${l.id}`} prefetch={false} className="min-w-0 flex-1 truncate text-sm hover:underline">
-                  {lectureName(l.title)}
-                </Link>
-                <span className="text-xs text-muted">{formatDate(l.delivered_at)}</span>
-                {l.lecture_progress?.watched ? <span className="text-xs text-accent">Watched</span> : null}
+              <li key={l.id}>
+                <LectureTile l={l} color={tint} from={here} />
               </li>
             ))}
-          </ul>
+          </TileGrid>
         ) : (
-          <Empty text="No lectures yet. They arrive with the Panopto bookmarklet in step 4." />
+          <Empty text="No lectures yet. Open Panopto and click the hub · Panopto bookmark." />
         )
       ) : key === 'assignments' ? (
         <>
@@ -60,8 +59,7 @@ export default async function FolderPage({ params }: PageProps<'/modules/[code]/
                 .sort((a, b) => compareSheets(a.sheet, b.sheet))
                 .map((a) => (
                   <li key={a.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                    <span className="w-10 font-semibold tabular-nums">{a.sheet}</span>
-                    <span className="min-w-0 flex-1 truncate">{a.title ?? (a.is_quiz ? 'Quiz' : 'Worksheet')}</span>
+                    <span className="min-w-0 flex-1 truncate font-medium">{sheetLabel(a)}</span>
                     <span className="text-xs text-muted">{STATUS_LABEL[a.status]}</span>
                   </li>
                 ))}

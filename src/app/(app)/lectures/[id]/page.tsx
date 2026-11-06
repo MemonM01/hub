@@ -6,6 +6,7 @@ import { formatDateTime } from '@/lib/format'
 import { lectureName } from '@/lib/lecture-name'
 import { LecturePlayer } from '@/components/lecture-player'
 import { WatchedToggle } from '@/components/lecture-controls'
+import { backLabel, safeFrom } from '@/lib/back'
 
 export const instant = false
 
@@ -21,7 +22,7 @@ type Lecture = {
   lecture_progress: { watched: boolean; percent: number } | null
 }
 
-export default async function LecturePage({ params }: PageProps<'/lectures/[id]'>) {
+export default async function LecturePage({ params, searchParams }: PageProps<'/lectures/[id]'>) {
   await requireUserId()
   const { id } = await params
   const supabase = await createClient()
@@ -32,14 +33,16 @@ export default async function LecturePage({ params }: PageProps<'/lectures/[id]'
     .maybeSingle()
   if (!data) notFound()
   const l = data as unknown as Lecture
-  const back = l.modules ? `/modules/${l.modules.code}/videos` : '/lectures'
+  const fallback = l.modules ? `/modules/${l.modules.code}/videos` : '/lectures'
+  const back = safeFrom((await searchParams).from, fallback)
+  const label = l.modules && back === fallback ? `${l.modules.code} videos` : backLabel(back)
 
   return (
     <article className="space-y-5">
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-0 flex-1">
           <Link href={back} prefetch={false} className="text-sm text-muted hover:text-ink">
-            ← {l.modules ? `${l.modules.code} videos` : 'Lectures'}
+            ← {label}
           </Link>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">{lectureName(l.title)}</h1>
           <p className="mt-1 text-sm text-muted">
