@@ -89,7 +89,7 @@ export function LecturePlayer({ sessionId, transcript }: { sessionId: string; tr
           </ol>
         ) : (
           <p className="p-4 text-sm text-muted">
-            Panopto has no captions for this recording yet. The Panopto sync picks them up as soon as they appear.
+            No transcript yet. Click the hub · Panopto bookmark on Panopto to fetch the captions.
           </p>
         )}
       </div>

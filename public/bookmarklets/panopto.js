@@ -346,8 +346,50 @@
       .join('\n')
   }
 
-  function transcriptFor(id) {
-    return fetch(BASE + '/Pages/Transcription/GenerateSRT.ashx?id=' + id + '&language=0', { credentials: 'include' })
+  function stamp(sec) {
+    sec = Math.max(0, Math.floor(sec))
+    var h = Math.floor(sec / 3600)
+    var m = Math.floor((sec % 3600) / 60)
+    var s2 = sec % 60
+    var mm = (m < 10 ? '0' : '') + m
+    var ss = (s2 < 10 ? '0' : '') + s2
+    return h ? h + ':' + mm + ':' + ss : mm + ':' + ss
+  }
+
+  // The player loads captions from DeliveryInfo.aspx. New recordings keep them under language 1
+  // (English); older ones under 0. GenerateSRT is the last resort.
+  function captionsFrom(id, language) {
+    return fetch(BASE + '/Pages/Viewer/DeliveryInfo.aspx', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+      body: new URLSearchParams({ deliveryId: id, getCaptions: 'true', language: String(language), responseType: 'json' }),
+    })
+      .then(function (res) {
+        return res.ok ? res.text() : ''
+      })
+      .then(function (t) {
+        if (!t || t.trim().charAt(0) !== '[') return null
+        var list = JSON.parse(t)
+        var lines = list
+          .filter(function (c) {
+            return c && c.Caption
+          })
+          .sort(function (a, b) {
+            return (a.Time || 0) - (b.Time || 0)
+          })
+          .map(function (c) {
+            return '[' + stamp(c.Time || 0) + '] ' + String(c.Caption).replace(/\s+/g, ' ').trim()
+          })
+        return lines.length ? lines.join('\n') : null
+      })
+      .catch(function () {
+        return null
+      })
+  }
+
+  function srtFrom(id, language) {
+    return fetch(BASE + '/Pages/Transcription/GenerateSRT.ashx?id=' + id + '&language=' + language, { credentials: 'include' })
       .then(function (res) {
         if (!res.ok) return null
         return res.text().then(function (t) {
@@ -358,6 +400,20 @@
       .catch(function () {
         return null
       })
+  }
+
+  function transcriptFor(id) {
+    var attempts = [
+      function () { return captionsFrom(id, 1) },
+      function () { return captionsFrom(id, 0) },
+      function () { return srtFrom(id, 1) },
+      function () { return srtFrom(id, 0) },
+    ]
+    return attempts.reduce(function (p, next) {
+      return p.then(function (found) {
+        return found || next()
+      })
+    }, Promise.resolve(null))
   }
 
   function withTranscripts(sessions, have) {
@@ -483,6 +539,8 @@
                 log(folder.name + ': ' + sessions.length + ' recording(s)')
                 if (!sessions.length) return
                 return withTranscripts(sessions, have).then(function () {
+                  var n = sessions.filter(function (x) { return x.transcript }).length
+                  if (n) log('  ' + n + ' transcript(s) found', 'dim')
                   var chunks = []
                   for (var i = 0; i < sessions.length; i += 20) chunks.push(sessions.slice(i, i + 20))
                   return chunks.reduce(function (q, chunk, n) {
