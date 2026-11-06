@@ -94,7 +94,6 @@ export async function panoptoState(admin: SupabaseClient, userId: string) {
       .select('panopto_session_id, thumbnail_url')
       .eq('user_id', userId)
       .is('thumbnail_key', null)
-      .not('thumbnail_url', 'is', null)
       .not('module_id', 'is', null)
       .limit(500),
   ])

@@ -470,28 +470,53 @@
   }
 
   // Preview images: Panopto only gives them to a logged-in browser, so copy them to hub once.
+  function postThumb(id, body, type) {
+    return fetch(HUB + '/api/sync/panopto/thumb?session=' + encodeURIComponent(id), {
+      method: 'POST',
+      headers: { authorization: 'Bearer ' + TOKEN, 'content-type': type },
+      body: body,
+    }).then(function (res) {
+      return res.ok
+    })
+  }
+
+  // The image address: the one saved, or ask Panopto for this session's thumbnail.
+  function thumbUrl(t) {
+    if (t.url) return Promise.resolve(String(t.url).replace(/^https?:\/\/[^/]+(?=\/Panopto\/)/, location.origin))
+    return pGet('/api/v1/sessions/' + t.id)
+      .then(function (d) {
+        return (d && d.Urls && d.Urls.ThumbnailUrl) || null
+      })
+      .catch(function () {
+        return null
+      })
+  }
+
   function copyThumbs(list) {
     var i = 0
     var ok = 0
+    function one(t) {
+      return thumbUrl(t).then(function (url) {
+        if (!url) return false
+        url = new URL(url, location.origin).href
+        if (url.indexOf(location.origin + '/') !== 0) return postThumb(t.id, JSON.stringify({ url: url }), 'application/json')
+        // Same site: read it with my login (it may redirect to the CDN).
+        return fetch(url, { credentials: 'include' })
+          .then(function (res) {
+            return res.ok ? res.blob() : null
+          })
+          .then(function (blob) {
+            if (!blob || !/^image\//.test(blob.type) || blob.size < 500) return false
+            return postThumb(t.id, blob, blob.type)
+          })
+      })
+    }
     function worker() {
       if (i >= list.length) return Promise.resolve()
       var t = list[i++]
-      var url = String(t.url || '').replace(/^https?:\/\/[^/]+/, location.origin)
-      if (url.indexOf(location.origin + '/Panopto/') !== 0) return worker()
-      return fetch(url, { credentials: 'include' })
-        .then(function (res) {
-          if (!res.ok) return null
-          return res.blob()
-        })
-        .then(function (blob) {
-          if (!blob || !/^image\//.test(blob.type) || blob.size < 500) return null
-          return fetch(HUB + '/api/sync/panopto/thumb?session=' + encodeURIComponent(t.id), {
-            method: 'POST',
-            headers: { authorization: 'Bearer ' + TOKEN, 'content-type': blob.type },
-            body: blob,
-          }).then(function (res) {
-            if (res.ok) ok++
-          })
+      return one(t)
+        .then(function (done) {
+          if (done) ok++
         })
         .catch(function () {})
         .then(worker)
