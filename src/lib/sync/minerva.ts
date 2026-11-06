@@ -13,6 +13,7 @@ export type InFile = {
   filename: string
   title: string | null
   week: number | null
+  sections: string[]
 }
 
 function str(v: unknown, max: number) {
@@ -34,6 +35,9 @@ export function cleanFiles(input: unknown): InFile[] {
       filename,
       title: str(f?.title, 300),
       week: Number.isInteger(week) && week > 0 && week < 60 ? week : null,
+      sections: Array.isArray(f?.sections)
+        ? f.sections.filter((x: unknown): x is string => typeof x === 'string').map((x: string) => x.slice(0, 120)).slice(0, 6)
+        : [],
     })
   }
   return out
@@ -57,8 +61,19 @@ export async function minervaState(admin: SupabaseClient, userId: string) {
  */
 export async function saveMinerva(admin: SupabaseClient, userId: string, files: InFile[]) {
   if (!files.length) return { recorded: 0, needBytes: [] as NeedBytes[] }
-  const { data: modules } = await admin.from('modules').select('id, code').eq('user_id', userId)
+  const { data: modules } = await admin.from('modules').select('id, code, topics').eq('user_id', userId)
   const moduleId = new Map((modules ?? []).map((m) => [m.code, m.id]))
+  const topicsOf = new Map((modules ?? []).map((m) => [m.code, (m.topics ?? []) as string[]]))
+  const norm = (t: string) => t.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '')
+  // The Minerva folder an item sits in ("Linear Algebra") becomes its topic when it is one of the module's topics.
+  const topicFor = (f: InFile) => {
+    const topics = topicsOf.get(f.moduleCode) ?? []
+    for (const s of [...f.sections].reverse()) {
+      const hit = topics.find((t) => norm(t) === norm(s))
+      if (hit) return hit
+    }
+    return null
+  }
 
   const rows = files
     .filter((f) => moduleId.has(f.moduleCode))
@@ -69,6 +84,7 @@ export async function saveMinerva(admin: SupabaseClient, userId: string, files: 
       filename: f.filename,
       title: f.title,
       week: f.week,
+      topic: topicFor(f),
       module_id: moduleId.get(f.moduleCode)!,
       mime_type: mimeFor(f.filename),
     }))

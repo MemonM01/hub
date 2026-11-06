@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import type { Metadata } from 'next'
 import { requireUserId } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
@@ -47,6 +48,30 @@ export default async function SettingsPage() {
   return (
     <section className="space-y-8">
       <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+
+      <div className="space-y-3">
+        <h2 className="text-base font-semibold">Weekly routine</h2>
+        <ol className="grid gap-3 sm:grid-cols-2">
+          {[
+            ['New lectures', 'Open Panopto, log in, then click the hub · Panopto bookmark.'],
+            ['New Minerva files', 'Open Minerva in Chrome, click the hub sync extension, then Sync Minerva now.'],
+            ['Timetable changes', 'Open Calendar and click Sync timetable.'],
+            ['Questions about your work', 'Ask Claude. It reads hub through the hub connector.'],
+          ].map(([what, how]) => (
+            <li key={what} className="rounded-xl bg-surface p-4 shadow-[0_0_0_1px_var(--line)]">
+              <div className="font-medium">{what}</div>
+              <p className="mt-1 text-sm text-muted">{how}</p>
+            </li>
+          ))}
+        </ol>
+        <p className="text-sm text-muted">
+          Anything the sorter was unsure about waits under{' '}
+          <Link href="/files" prefetch={false} className="underline">
+            Files
+          </Link>{' '}
+          as needing a look.
+        </p>
+      </div>
 
       <div className="space-y-3">
         <h2 className="text-base font-semibold">Bookmarklets</h2>

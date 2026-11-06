@@ -123,6 +123,7 @@ async function walk(course, complete) {
             filename: a.fileName,
             title: item.title && item.title !== a.fileName ? item.title : null,
             week: weekOf(titles),
+            sections: trail.slice(0, 6), // Minerva folders above this item, e.g. ["Lecture Slides", "Linear Algebra"]
             download: API + '/courses/' + course.id + '/contents/' + item.id + '/attachments/' + a.id + '/download',
             done: !!complete[ext],
           })
@@ -260,12 +261,13 @@ async function syncMinerva() {
       relog(line, course.code + ': ' + files.length + ' file(s), ' + fresh.length + ' to copy')
       const byExt = Object.fromEntries(fresh.map((f) => [f.externalId, f]))
       for (let i = 0; i < fresh.length; i += 100) {
-        const batch = fresh.slice(i, i + 100).map(({ externalId, moduleCode, filename, title, week }) => ({
+        const batch = fresh.slice(i, i + 100).map(({ externalId, moduleCode, filename, title, week, sections }) => ({
           externalId,
           moduleCode,
           filename,
           title,
           week,
+          sections,
         }))
         const r = await hub(cfg, '/api/sync/minerva/files', { files: batch })
         const room = Math.max(0, MAX_DOWNLOADS - totals.stored - totals.failed)

@@ -22,6 +22,15 @@ export function groupOf(f: Orderable): { key: string; label: string; sort: [numb
   return null
 }
 
+/** Lecture or session number from 'lec03.html', 'Lecture3.pdf', 'Session 2 slides'. */
+function lectureNumber(f: Orderable): number | null {
+  for (const t of [f.filename, f.title ?? '']) {
+    const m = /(?<![A-Za-z])(?:lec|lecture|session|slides?|week)[\s_-]*0*(\d{1,2})(?!\d)/i.exec(t)
+    if (m) return Number(m[1])
+  }
+  return null
+}
+
 function kindRank(kind: string | null) {
   const i = KIND_ORDER.indexOf(kind ?? '')
   return i === -1 ? KIND_ORDER.length : i
@@ -40,6 +49,9 @@ export function compareFiles(a: Orderable, b: Orderable): number {
     const wa = a.week ?? 999
     const wb = b.week ?? 999
     if (wa !== wb) return wa - wb
+    const la = lectureNumber(a)
+    const lb = lectureNumber(b)
+    if (la != null && lb != null && la !== lb) return la - lb
   }
   return kindRank(a.kind) - kindRank(b.kind) || collator.compare(a.title ?? a.filename, b.title ?? b.filename)
 }

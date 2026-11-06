@@ -19,3 +19,6 @@ assert.equal(list[2].filename, 'tmpl.docx')
 assert.equal(list[3].filename, 'w15s.pdf')
 assert.equal(list[4].filename, 'COMP2860_Worksheet1_10.pdf')
 console.log('order: passed')
+const la = [f('lec03.html', 'lecture_slides', 'Direct solvers'), f('lec01.html', 'lecture_slides', 'Introduction'), f('lec02.html', 'lecture_slides', 'Complex')]
+assert.deepEqual(la.sort(compareFiles).map((x) => x.filename), ['lec01.html', 'lec02.html', 'lec03.html'])
+console.log('order by lecture number: passed')

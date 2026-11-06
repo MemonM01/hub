@@ -76,6 +76,8 @@ export default async function FolderPage({ params }: PageProps<'/modules/[code]/
           <TopicEditor moduleId={mod.id} code={mod.code} topics={mod.topics ?? []} />
           <TopicList files={files} topics={mod.topics ?? []} back={here} />
         </div>
+      ) : inFolder.length && inFolder.some((f) => f.topic) ? (
+        <ByTopic files={inFolder} topics={mod.topics ?? []} back={here} sheets={key === 'worksheets'} />
       ) : key === 'worksheets' && inFolder.length ? (
         <GroupedList files={inFolder} back={here} />
       ) : inFolder.length ? (
@@ -104,6 +106,38 @@ function FileList({ files, back }: { files: FileRow[]; back: string }) {
         </li>
       ))}
     </ul>
+  )
+}
+
+/** Sections named like on Minerva ("Linear Algebra"), in the order they were taught. */
+function ByTopic({
+  files,
+  topics,
+  back,
+  sheets,
+}: {
+  files: (FileRow & { week: number | null; topic: string | null })[]
+  topics: string[]
+  back: string
+  sheets: boolean
+}) {
+  const extra = [...new Set(files.map((f) => f.topic).filter((t): t is string => !!t && !topics.includes(t)))].sort()
+  const groups = [...topics, ...extra].map((t) => ({ key: t, label: t, files: files.filter((f) => f.topic === t) }))
+  const rest = files.filter((f) => !f.topic)
+  if (rest.length) groups.push({ key: 'other', label: 'Other', files: rest })
+  return (
+    <div className="space-y-8">
+      {groups
+        .filter((g) => g.files.length)
+        .map((g) => (
+          <section key={g.key}>
+            <h2 className="mb-3 text-lg font-semibold tracking-tight">
+              {g.label} <span className="text-sm font-normal text-muted">{g.files.length}</span>
+            </h2>
+            {sheets ? <GroupedList files={g.files} back={back} /> : <FileList files={[...g.files].sort(compareFiles)} back={back} />}
+          </section>
+        ))}
+    </div>
   )
 }
 
